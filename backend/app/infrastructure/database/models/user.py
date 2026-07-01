@@ -1,7 +1,7 @@
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.app.infrastructure.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.infrastructure.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):

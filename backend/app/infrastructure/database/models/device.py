@@ -6,7 +6,7 @@ from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, UniqueConstrai
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.app.infrastructure.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.infrastructure.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class DeviceType(StrEnum):

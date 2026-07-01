@@ -73,6 +73,7 @@ temp/
 # MQTT / Mosquitto local data if accidentally created outside Docker volume
 mosquitto/data/
 mosquitto/log/
+infrastructure/docker/mosquitto/passwordfile
 
 # Redis / Postgres local dumps
 *.rdb

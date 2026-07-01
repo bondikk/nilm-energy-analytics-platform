@@ -5,7 +5,7 @@ from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.app.infrastructure.database.base import Base
+from app.infrastructure.database.base import Base
 
 
 class EnergyMetric(Base):

@@ -6,7 +6,7 @@ from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.app.infrastructure.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.infrastructure.database.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class AnomalyType(StrEnum):
