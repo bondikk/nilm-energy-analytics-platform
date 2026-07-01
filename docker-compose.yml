@@ -1,0 +1,87 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg17
+    container_name: voltpulse-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-voltpulse}
+      POSTGRES_USER: ${POSTGRES_USER:-voltpulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voltpulse_dev_password}
+      TIMESCALEDB_TELEMETRY: off
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: voltpulse-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-redis_dev_password}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD:-redis_dev_password} ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: voltpulse-mosquitto
+    restart: unless-stopped
+    user: root
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME:-voltpulse_mqtt}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-mqtt_dev_password}
+    command: >
+      sh -c "
+      touch /mosquitto/config/passwordfile &&
+      mosquitto_passwd -b /mosquitto/config/passwordfile $${MQTT_USERNAME} $${MQTT_PASSWORD} &&
+      exec mosquitto -c /mosquitto/config/mosquitto.conf
+      "
+    ports:
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - ./infrastructure/docker/mosquitto:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  backend:
+    build:
+      context: ./backend
+    container_name: voltpulse-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: >
+      sh -c "
+      alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+volumes:
+  timescale_data:
+  redis_data:
+  mosquitto_data:
+  mosquitto_log:
