@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.router import api_router
 from app.core.config import settings
 
 
@@ -8,12 +9,4 @@ app = FastAPI(
     version="0.1.0",
     description="Cloud-native NILM and energy analytics platform.",
 )
-
-
-@app.get("/health", tags=["system"])
-async def health_check() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": settings.project_name,
-        "environment": settings.environment,
-    }
+app.include_router(api_router)
