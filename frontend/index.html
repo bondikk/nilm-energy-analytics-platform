@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VoltPulse Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M18.7 2 6 18.1h9.1L12.8 30 26 13h-9.4L18.7 2Z" />
+          </svg>
+          <div>
+            <strong>VoltPulse</strong>
+            <span>Energy Analytics</span>
+          </div>
+        </div>
+
+        <nav class="nav-stack" aria-label="Workspace views">
+          <button class="nav-item active" type="button" data-view="overview">Overview</button>
+          <button class="nav-item" type="button" data-view="homes">Homes</button>
+          <button class="nav-item" type="button" data-view="devices">Devices</button>
+          <button class="nav-item" type="button" data-view="analytics">Analytics</button>
+          <button class="nav-item" type="button" data-view="anomalies">Anomalies</button>
+          <button class="nav-item" type="button" data-view="simulator">Simulator</button>
+          <button class="nav-item" type="button" data-view="settings">Settings</button>
+        </nav>
+
+        <form id="login-form" class="login-panel">
+          <label>
+            Email
+            <input id="email" name="email" type="email" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <button type="submit">Sign in</button>
+        </form>
+
+        <div class="session-panel">
+          <span id="session-label">Not signed in</span>
+          <strong id="session-email">demo@voltpulse.local</strong>
+          <button id="sign-out-button" class="secondary-button" type="button">Sign out</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Control room</p>
+            <h1 id="view-title">Overview</h1>
+          </div>
+          <div class="topbar-actions">
+            <button id="export-button" class="secondary-button" type="button">Export CSV</button>
+            <button id="refresh-button" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <section class="filters" aria-label="Dashboard filters">
+          <label>
+            Home
+            <select id="home-select"></select>
+          </label>
+          <label>
+            Device
+            <select id="device-select"></select>
+          </label>
+          <label>
+            Period
+            <select id="period-select">
+              <option value="24h">Last 24h</option>
+              <option value="7d">Last 7d</option>
+              <option value="30d">Last 30d</option>
+              <option value="all">All data</option>
+            </select>
+          </label>
+          <label class="toggle-row">
+            <input id="auto-refresh-toggle" type="checkbox" />
+            Auto refresh
+          </label>
+        </section>
+
+        <section id="message" class="message" hidden></section>
+
+        <section class="view active" id="view-overview" data-view-panel="overview">
+          <section class="metric-grid" aria-label="Energy summary">
+            <article class="metric-tile accent-tile">
+              <span>Energy</span>
+              <strong id="energy-total">0 kWh</strong>
+              <small id="energy-context">Selected period</small>
+            </article>
+            <article class="metric-tile">
+              <span>Avg power</span>
+              <strong id="avg-power">0 W</strong>
+              <small id="sample-count">0 samples</small>
+            </article>
+            <article class="metric-tile">
+              <span>Peak power</span>
+              <strong id="peak-power">0 W</strong>
+              <small id="power-range">0 W min</small>
+            </article>
+            <article class="metric-tile">
+              <span>Grid quality</span>
+              <strong id="avg-voltage">0 V</strong>
+              <small id="avg-current">0 A avg current</small>
+            </article>
+          </section>
+
+          <section class="dashboard-grid">
+            <section class="panel chart-panel" aria-label="Active power chart">
+              <div class="panel-heading">
+                <div>
+                  <h2>Active power</h2>
+                  <span id="chart-subtitle">No device selected</span>
+                </div>
+                <span id="last-refresh" class="status-chip">Not loaded</span>
+              </div>
+              <canvas id="power-chart" width="1100" height="360"></canvas>
+            </section>
+
+            <section class="panel" aria-label="Operations">
+              <div class="panel-heading">
+                <div>
+                  <h2>Operations</h2>
+                  <span id="ops-subtitle">Current home</span>
+                </div>
+              </div>
+              <div class="operations-list" id="operations-list"></div>
+            </section>
+          </section>
+        </section>
+
+        <section class="view" id="view-homes" data-view-panel="homes">
+          <section class="split-grid">
+            <form id="home-form" class="panel form-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Create home</h2>
+                  <span>Portfolio setup</span>
+                </div>
+              </div>
+              <label>
+                Name
+                <input id="home-name" name="name" required maxlength="120" />
+              </label>
+              <label>
+                Timezone
+                <input id="home-timezone" name="timezone" value="Europe/Bratislava" required />
+              </label>
+              <label>
+                Location
+                <input id="home-location" name="location_label" maxlength="255" />
+              </label>
+              <button type="submit">Create home</button>
+            </form>
+
+            <section class="panel table-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Homes</h2>
+                  <span id="homes-count">0 total</span>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Timezone</th>
+                      <th>Location</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody id="homes-table"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section class="view" id="view-devices" data-view-panel="devices">
+          <section class="split-grid">
+            <form id="device-form" class="panel form-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Create device</h2>
+                  <span>Attach to selected home</span>
+                </div>
+              </div>
+              <label>
+                External ID
+                <input id="device-external-id" name="external_id" required maxlength="128" />
+              </label>
+              <label>
+                Name
+                <input id="device-name" name="name" required maxlength="120" />
+              </label>
+              <label>
+                Type
+                <select id="device-type" name="device_type">
+                  <option value="smart_meter">Smart meter</option>
+                  <option value="simulated_meter">Simulated meter</option>
+                  <option value="gateway">Gateway</option>
+                </select>
+              </label>
+              <label>
+                Firmware
+                <input id="device-firmware" name="firmware_version" maxlength="64" />
+              </label>
+              <button type="submit">Create device</button>
+            </form>
+
+            <section class="panel table-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Devices</h2>
+                  <span id="devices-count">0 total</span>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>External ID</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Firmware</th>
+                    </tr>
+                  </thead>
+                  <tbody id="devices-table"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section class="view" id="view-analytics" data-view-panel="analytics">
+          <section class="panel chart-panel wide-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Load profile</h2>
+                <span id="analytics-subtitle">Selected device</span>
+              </div>
+              <span id="analytics-total" class="status-chip">0 kWh</span>
+            </div>
+            <canvas id="analytics-chart" width="1200" height="420"></canvas>
+          </section>
+
+          <section class="panel table-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Latest readings</h2>
+                <span id="readings-count">0 rows</span>
+              </div>
+            </div>
+            <div class="table-wrap compact-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Power</th>
+                    <th>Voltage</th>
+                    <th>Current</th>
+                    <th>Energy delta</th>
+                  </tr>
+                </thead>
+                <tbody id="readings-table"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="view-anomalies" data-view-panel="anomalies">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Anomaly triage</h2>
+                <span id="anomaly-count">0 items</span>
+              </div>
+              <div class="inline-controls">
+                <select id="anomaly-status-filter">
+                  <option value="">Any status</option>
+                  <option value="open">Open</option>
+                  <option value="acknowledged">Acknowledged</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+                <select id="anomaly-severity-filter">
+                  <option value="">Any severity</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+            </div>
+            <div id="anomaly-list" class="anomaly-list"></div>
+          </section>
+        </section>
+
+        <section class="view" id="view-simulator" data-view-panel="simulator">
+          <section class="split-grid">
+            <form id="seed-form" class="panel form-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Demo generator</h2>
+                  <span>Synthetic load profile</span>
+                </div>
+              </div>
+              <label>
+                Email
+                <input id="seed-email" type="email" value="demo@voltpulse.local" required />
+              </label>
+              <label>
+                Password
+                <input id="seed-password" type="text" value="demo-password" required minlength="8" />
+              </label>
+              <label>
+                Samples
+                <input id="seed-sample-count" type="number" min="1" max="2880" value="96" />
+              </label>
+              <label>
+                Interval minutes
+                <input id="seed-interval" type="number" min="1" max="1440" value="15" />
+              </label>
+              <button type="submit">Seed demo data</button>
+            </form>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Seed result</h2>
+                  <span id="seed-result-title">No run yet</span>
+                </div>
+              </div>
+              <dl class="result-list" id="seed-result"></dl>
+            </section>
+          </section>
+        </section>
+
+        <section class="view" id="view-settings" data-view-panel="settings">
+          <section class="panel settings-grid">
+            <div>
+              <h2>Runtime</h2>
+              <dl class="result-list">
+                <div>
+                  <dt>API</dt>
+                  <dd id="settings-api"></dd>
+                </div>
+                <div>
+                  <dt>Session</dt>
+                  <dd id="settings-session"></dd>
+                </div>
+                <div>
+                  <dt>Auto refresh</dt>
+                  <dd id="settings-refresh"></dd>
+                </div>
+              </dl>
+            </div>
+            <div>
+              <h2>Local commands</h2>
+              <pre><code>docker compose up --build
+docker compose exec backend python -m app.tools.seed_demo_data
+.venv/bin/python -m http.server 5173 --bind 127.0.0.1 --directory frontend</code></pre>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
