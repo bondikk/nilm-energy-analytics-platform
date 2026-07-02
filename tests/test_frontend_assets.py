@@ -15,6 +15,7 @@ def test_frontend_entrypoint_references_assets() -> None:
     assert "VoltPulse Dashboard" in html
     assert 'data-view="analytics"' in html
     assert 'data-view="simulator"' in html
+    assert 'id="live-mqtt-form"' in html
 
 
 def test_frontend_app_points_to_local_backend() -> None:
@@ -24,6 +25,7 @@ def test_frontend_app_points_to_local_backend() -> None:
     assert "/auth/login" in app_js
     assert "/analytics/summary" in app_js
     assert "/demo/seed" in app_js
+    assert "/demo/live-metric" in app_js
     assert "new WebSocket" in app_js
     assert "/metrics/live" in app_js
     assert "exportMetricsCsv" in app_js

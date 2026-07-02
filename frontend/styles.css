@@ -625,6 +625,37 @@ h2 {
   gap: 14px;
 }
 
+.simulator-live-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.simulator-divider {
+  height: 1px;
+  background: var(--line);
+}
+
+.compact-heading {
+  margin-bottom: 4px;
+}
+
+.live-mqtt-form {
+  display: grid;
+  gap: 12px;
+}
+
+.live-mqtt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.live-result {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
 .table-panel {
   min-height: 360px;
 }

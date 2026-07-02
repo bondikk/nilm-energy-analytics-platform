@@ -28,7 +28,7 @@ The dashboard turns raw meter readings into an operator-style view with:
 - NILM signal analysis for detecting load step events from meter readings
 - automatic anomaly creation from fresh NILM load events
 - WebSocket live metric updates for the dashboard chart and readings table
-- demo simulator for generating realistic local data
+- demo simulator for generating local datasets and live MQTT readings
 
 ## Screenshots
 
@@ -62,6 +62,8 @@ Optional screenshots to add later:
 ```mermaid
 flowchart LR
   Simulator["IoT simulator or smart meter"] --> MQTT["Mosquitto MQTT"]
+  Frontend --> SimAPI["Live simulator API"]
+  SimAPI --> MQTT
   MQTT --> Consumer["MQTT consumer"]
   Consumer --> Stream["Redis Streams"]
   Stream --> Writer["Metrics writer worker"]
@@ -140,6 +142,7 @@ flowchart LR
 - WebSocket endpoint for live metric events.
 - Anomaly filtering, acknowledgement, and resolution.
 - Local demo data seeding through `POST /demo/seed`.
+- Live MQTT simulator publishing through `POST /demo/live-metric`.
 
 ### NILM Signal Analysis
 
@@ -155,6 +158,7 @@ flowchart LR
 ### Streaming Ingestion
 
 - MQTT consumer subscribes to `voltpulse/+/devices/+/metrics`.
+- The dashboard Simulator can publish a manual or spike reading to Mosquitto.
 - Valid IoT readings are written to the `voltpulse.metrics.ingest` Redis Stream.
 - Metrics writer consumes the stream as a Redis consumer group.
 - Writer resolves the device and persists readings into TimescaleDB-backed
@@ -174,6 +178,16 @@ flowchart LR
   selected meter.
 - The frontend reconnects automatically and updates the chart, KPI tiles, and
   latest readings table as new metrics arrive.
+
+### Live MQTT Simulator
+
+- The Simulator view can send normal readings or high-load spike readings for
+  the selected device.
+- The backend publishes those readings to Mosquitto using the same topic shape
+  as an external smart meter: `voltpulse/demo/devices/{external_id}/metrics`.
+- The event then moves through the real ingestion path: MQTT consumer, Redis
+  Streams, metrics writer, TimescaleDB, NILM anomaly detection, Redis Pub/Sub,
+  and WebSocket dashboard updates.
 
 ## Quick Start
 
@@ -255,6 +269,7 @@ docker compose exec mosquitto mosquitto_pub \
 | `/homes/{home_id}/metrics/live` | Live metrics WebSocket |
 | `/homes/{home_id}/anomalies` | Anomaly triage |
 | `/demo/seed` | Local demo dataset generation |
+| `/demo/live-metric` | Publish a selected device reading into MQTT |
 
 ## Streaming Pipeline
 
@@ -272,6 +287,7 @@ Pipeline modules:
 | Module | Responsibility |
 | --- | --- |
 | `app.schemas.ingestion` | Validates incoming IoT metric payloads |
+| `app.services.mqtt_publisher` | Publishes live simulator readings to Mosquitto |
 | `app.services.mqtt_consumer` | Subscribes to MQTT and publishes valid payloads to Redis Streams |
 | `app.services.redis_streams` | Wraps Redis Stream publish/read/ack behavior |
 | `app.workers.metrics_writer` | Consumes stream messages and writes energy metrics to the database |
@@ -337,6 +353,7 @@ VoltPulse currently includes:
 - NILM signal analysis endpoint over stored meter readings
 - automatic anomaly creation from streaming NILM events
 - live WebSocket metric updates for the dashboard
+- live MQTT simulator controls in the dashboard
 
 Good next steps:
 

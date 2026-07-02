@@ -114,6 +114,14 @@ const elements = {
   seedInterval: document.querySelector("#seed-interval"),
   seedResultTitle: document.querySelector("#seed-result-title"),
   seedResult: document.querySelector("#seed-result"),
+  liveMqttForm: document.querySelector("#live-mqtt-form"),
+  liveMqttSubtitle: document.querySelector("#live-mqtt-subtitle"),
+  livePower: document.querySelector("#live-power"),
+  liveVoltage: document.querySelector("#live-voltage"),
+  livePowerFactor: document.querySelector("#live-power-factor"),
+  liveInterval: document.querySelector("#live-interval"),
+  liveSpikeButton: document.querySelector("#live-spike-button"),
+  liveMqttResult: document.querySelector("#live-mqtt-result"),
   settingsApi: document.querySelector("#settings-api"),
   settingsSession: document.querySelector("#settings-session"),
   settingsRefresh: document.querySelector("#settings-refresh"),
@@ -291,6 +299,15 @@ elements.anomalyList.addEventListener("click", async (event) => {
 elements.seedForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await seedDemoData();
+});
+
+elements.liveMqttForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await sendLiveMqttMetric("manual");
+});
+
+elements.liveSpikeButton.addEventListener("click", async () => {
+  await sendLiveMqttMetric("spike");
 });
 
 setActiveView(state.activeView);
@@ -533,6 +550,42 @@ async function seedDemoData() {
   }
 }
 
+async function sendLiveMqttMetric(scenario) {
+  if (!state.selectedHomeId || !state.selectedDeviceId) {
+    showMessage("Select a home and device before sending a live MQTT reading.");
+    return;
+  }
+
+  const activePower = scenario === "spike"
+    ? Math.max(Number(elements.livePower.value || 0) + 900, 1300)
+    : Number(elements.livePower.value || 0);
+  if (scenario === "spike") {
+    elements.livePower.value = String(activePower);
+  }
+
+  setBusy(true);
+  try {
+    const result = await fetchJson("/demo/live-metric", {
+      method: "POST",
+      body: {
+        home_id: state.selectedHomeId,
+        device_id: state.selectedDeviceId,
+        active_power_w: activePower,
+        voltage_v: Number(elements.liveVoltage.value || 230),
+        power_factor: Number(elements.livePowerFactor.value || 0.94),
+        interval_minutes: Number(elements.liveInterval.value || 15),
+        scenario,
+      },
+    });
+    renderLiveMqttResult(result);
+    showMessage(`Published ${formatWatts(result.active_power_w)} to MQTT.`);
+  } catch (error) {
+    showError(error);
+  } finally {
+    setBusy(false);
+  }
+}
+
 function setActiveView(view) {
   state.activeView = viewLabels[view] ? view : "overview";
   localStorage.setItem("voltpulse_view", state.activeView);
@@ -564,6 +617,7 @@ function renderDeviceOptions() {
   elements.deviceSelect.innerHTML = "";
   if (state.devices.length === 0) {
     appendOption(elements.deviceSelect, "", "No devices");
+    renderLiveMqttContext();
     return;
   }
 
@@ -571,6 +625,7 @@ function renderDeviceOptions() {
     appendOption(elements.deviceSelect, device.id, `${device.name} (${device.external_id})`);
   }
   elements.deviceSelect.value = state.selectedDeviceId;
+  renderLiveMqttContext();
 }
 
 function renderHomes() {
@@ -1400,10 +1455,43 @@ function renderSeedResult(result) {
   }
 }
 
+function renderLiveMqttContext() {
+  const selectedDevice = state.devices.find((device) => device.id === state.selectedDeviceId);
+  const ready = Boolean(state.token && state.selectedHomeId && selectedDevice);
+  elements.liveMqttSubtitle.textContent = selectedDevice
+    ? `Publishing to ${selectedDevice.external_id} through Mosquitto`
+    : "Select a device to publish readings";
+  elements.liveMqttForm.querySelectorAll("input, button").forEach((control) => {
+    control.disabled = !ready;
+  });
+}
+
+function renderLiveMqttResult(result) {
+  elements.liveMqttResult.innerHTML = "";
+  const rows = [
+    ["Published", result.published ? "yes" : "no"],
+    ["Topic", result.topic],
+    ["Power", formatWatts(result.active_power_w)],
+    ["Current", formatAmps(result.current_a)],
+    ["Energy delta", `${formatNumber(result.energy_wh_delta)} Wh`],
+    ["Scenario", result.scenario],
+  ];
+  for (const [label, value] of rows) {
+    const wrapper = document.createElement("div");
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    term.textContent = label;
+    description.textContent = value;
+    wrapper.append(term, description);
+    elements.liveMqttResult.append(wrapper);
+  }
+}
+
 function renderSettings() {
   elements.settingsApi.textContent = API_BASE_URL;
   elements.settingsSession.textContent = state.user ? state.user.email : "Not signed in";
   elements.settingsRefresh.textContent = state.autoRefresh ? "Every 60 seconds" : "Manual";
+  renderLiveMqttContext();
 }
 
 function clearWorkspace() {
@@ -1741,9 +1829,14 @@ function setBusy(isBusy) {
     elements.homeForm.querySelector("button"),
     elements.deviceForm.querySelector("button"),
     elements.seedForm.querySelector("button"),
+    elements.liveMqttForm.querySelector("button"),
+    elements.liveSpikeButton,
   ].forEach((button) => {
     button.disabled = isBusy;
   });
+  if (!isBusy) {
+    renderLiveMqttContext();
+  }
 }
 
 function showMessage(text) {

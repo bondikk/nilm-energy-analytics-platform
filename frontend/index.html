@@ -486,7 +486,7 @@
               <button type="submit">Seed demo data</button>
             </form>
 
-            <section class="panel">
+            <section class="panel simulator-live-panel">
               <div class="panel-heading">
                 <div>
                   <h2>Seed result</h2>
@@ -494,6 +494,47 @@
                 </div>
               </div>
               <dl class="result-list" id="seed-result"></dl>
+
+              <div class="simulator-divider"></div>
+
+              <form id="live-mqtt-form" class="live-mqtt-form">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <h2>Live MQTT pulse</h2>
+                    <span id="live-mqtt-subtitle">Select a device to publish readings</span>
+                  </div>
+                </div>
+                <div class="live-mqtt-grid">
+                  <label>
+                    Power W
+                    <input id="live-power" type="number" min="0" step="1" value="720" />
+                  </label>
+                  <label>
+                    Voltage V
+                    <input id="live-voltage" type="number" min="0" step="0.1" value="230" />
+                  </label>
+                  <label>
+                    Power factor
+                    <input
+                      id="live-power-factor"
+                      type="number"
+                      min="0.01"
+                      max="1"
+                      step="0.01"
+                      value="0.94"
+                    />
+                  </label>
+                  <label>
+                    Interval min
+                    <input id="live-interval" type="number" min="1" max="1440" step="1" value="15" />
+                  </label>
+                </div>
+                <div class="row-actions">
+                  <button type="submit">Send reading</button>
+                  <button id="live-spike-button" class="secondary-button" type="button">Send spike</button>
+                </div>
+              </form>
+              <dl class="result-list live-result" id="live-mqtt-result"></dl>
             </section>
           </section>
         </section>
