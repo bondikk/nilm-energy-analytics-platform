@@ -49,7 +49,7 @@ class EnergyMetric(Base):
     frequency_hz: Mapped[float | None] = mapped_column(Float, nullable=True)
     energy_wh_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    raw_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (
         CheckConstraint("voltage_v IS NULL OR voltage_v >= 0", name="voltage_non_negative"),

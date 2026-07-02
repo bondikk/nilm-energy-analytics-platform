@@ -38,3 +38,10 @@ target-version = "py312"
 python_version = "3.12"
 strict = true
 plugins = []
+
+[[tool.mypy.overrides]]
+module = [
+    "jose.*",
+    "passlib.*",
+]
+ignore_missing_imports = true
