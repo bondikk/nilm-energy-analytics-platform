@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     mqtt_password: SecretStr = SecretStr("mqtt_dev_password")
     mqtt_host: str = "localhost"
     mqtt_port: int = 1883
+    mqtt_metrics_topic: str = "voltpulse/+/devices/+/metrics"
 
     jwt_secret_key: SecretStr = SecretStr("change_me_in_production")
     jwt_algorithm: str = "HS256"

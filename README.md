@@ -4,8 +4,8 @@ Premium energy analytics platform for home electricity monitoring, smart meter
 telemetry, anomaly detection, and NILM-style load insights.
 
 VoltPulse combines a FastAPI backend, PostgreSQL/TimescaleDB storage, Redis,
-Mosquitto, demo data generation, and a polished dark "Energy Control Room"
-dashboard for exploring energy usage in a smart home.
+Mosquitto, Redis Streams ingestion, demo data generation, and a polished dark
+"Energy Control Room" dashboard for exploring energy usage in a smart home.
 
 ![VoltPulse Energy Control Room](docs/screenshots/01-energy-control-room.png)
 
@@ -24,6 +24,7 @@ The dashboard turns raw meter readings into an operator-style view with:
 - device activity cards with impact indicators
 - anomaly timeline and triage workflow
 - load shift planner with savings, peak reduction, and CO2 estimates
+- MQTT to Redis Streams to TimescaleDB ingestion pipeline
 - demo simulator for generating realistic local data
 
 ## Screenshots
@@ -57,6 +58,12 @@ Optional screenshots to add later:
 
 ```mermaid
 flowchart LR
+  Simulator["IoT simulator or smart meter"] --> MQTT["Mosquitto MQTT"]
+  MQTT --> Consumer["MQTT consumer"]
+  Consumer --> Stream["Redis Streams"]
+  Stream --> Writer["Metrics writer worker"]
+  Writer --> DB["PostgreSQL / TimescaleDB"]
+
   User["User"] --> Frontend["Static Energy Control Room dashboard"]
   Frontend --> API["FastAPI backend"]
   API --> Auth["JWT auth and user sessions"]
@@ -65,11 +72,11 @@ flowchart LR
   API --> Anomalies["Anomaly workflow"]
   API --> Analytics["Analytics summary"]
   API --> Demo["Demo data seeding"]
-  Metrics --> DB["PostgreSQL / TimescaleDB"]
+  Metrics --> DB
   Anomalies --> DB
   Analytics --> DB
   API --> Redis["Redis"]
-  API --> MQTT["Mosquitto MQTT"]
+  Redis --> Stream
 ```
 
 ## Tech Stack
@@ -82,6 +89,7 @@ flowchart LR
 | Auth | JWT access tokens, password hashing |
 | Migrations | Alembic |
 | Frontend | Static HTML, CSS, JavaScript, Canvas charts |
+| Streaming | MQTT consumer, Redis Streams, metrics writer worker |
 | Local stack | Docker Compose |
 | Quality | Pytest, Ruff, Mypy |
 
@@ -118,6 +126,15 @@ flowchart LR
 - Home-level analytics summary.
 - Anomaly filtering, acknowledgement, and resolution.
 - Local demo data seeding through `POST /demo/seed`.
+
+### Streaming Ingestion
+
+- MQTT consumer subscribes to `voltpulse/+/devices/+/metrics`.
+- Valid IoT readings are written to the `voltpulse.metrics.ingest` Redis Stream.
+- Metrics writer consumes the stream as a Redis consumer group.
+- Writer resolves the device and persists readings into TimescaleDB-backed
+  `energy_metrics`.
+- Successfully written stream messages are acknowledged.
 
 ## Quick Start
 
@@ -170,6 +187,21 @@ email: demo@voltpulse.local
 password: demo-password
 ```
 
+### 4. Send a streaming metric through MQTT
+
+After seeding demo data, publish a smart meter reading to Mosquitto. The MQTT
+consumer will push it to Redis Streams, and the metrics writer will persist it.
+
+```bash
+docker compose exec mosquitto mosquitto_pub \
+  -h 127.0.0.1 \
+  -p 1883 \
+  -u voltpulse_mqtt \
+  -P mqtt_dev_password \
+  -t voltpulse/demo/devices/demo-main-meter/metrics \
+  -m '{"ts":"2026-07-02T18:45:00Z","device_external_id":"demo-main-meter","voltage_v":230.0,"current_a":3.1,"active_power_w":713.0,"power_factor":0.94,"energy_wh_delta":178.25}'
+```
+
 ## API Overview
 
 | Area | Purpose |
@@ -183,6 +215,26 @@ password: demo-password
 | `/homes/{home_id}/anomalies` | Anomaly triage |
 | `/demo/seed` | Local demo dataset generation |
 
+## Streaming Pipeline
+
+```text
+IoT Simulator
+  -> Mosquitto MQTT
+  -> MQTT Consumer
+  -> Redis Streams
+  -> Metrics Writer
+  -> TimescaleDB
+```
+
+Pipeline modules:
+
+| Module | Responsibility |
+| --- | --- |
+| `app.schemas.ingestion` | Validates incoming IoT metric payloads |
+| `app.services.mqtt_consumer` | Subscribes to MQTT and publishes valid payloads to Redis Streams |
+| `app.services.redis_streams` | Wraps Redis Stream publish/read/ack behavior |
+| `app.workers.metrics_writer` | Consumes stream messages and writes energy metrics to the database |
+
 ## Project Structure
 
 ```text
@@ -194,6 +246,7 @@ password: demo-password
 |   |   |-- infrastructure/    # Database setup
 |   |   |-- schemas/           # Pydantic schemas
 |   |   |-- services/          # Demo data and domain services
+|   |   |-- workers/           # Redis Stream background workers
 |   |   `-- tools/             # Local utility commands
 |   |-- alembic/               # Database migrations
 |   `-- pyproject.toml
