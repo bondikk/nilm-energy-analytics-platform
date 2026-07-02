@@ -80,6 +80,36 @@ services:
       mosquitto:
         condition: service_started
 
+  mqtt-consumer:
+    build:
+      context: ./backend
+    container_name: voltpulse-mqtt-consumer
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: python -m app.services.mqtt_consumer
+    depends_on:
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  metrics-writer:
+    build:
+      context: ./backend
+    container_name: voltpulse-metrics-writer
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: python -m app.workers.metrics_writer
+    depends_on:
+      backend:
+        condition: service_started
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   timescale_data:
   redis_data:
