@@ -182,18 +182,19 @@
                   <span>Power: 0 W</span>
                   <span>Peak: 0 W</span>
                   <span>Voltage: 0 V</span>
+                  <span>Time: --</span>
                 </div>
               </div>
               <div class="chart-toolbar" aria-label="Chart controls">
                 <div class="segmented-control">
-                  <button class="active" type="button">Power</button>
-                  <button type="button">Voltage</button>
-                  <button type="button">Current</button>
-                  <button type="button">Cost</button>
+                  <button class="active" type="button" data-chart-mode="power">Power</button>
+                  <button type="button" data-chart-mode="voltage">Voltage</button>
+                  <button type="button" data-chart-mode="current">Current</button>
+                  <button type="button" data-chart-mode="cost">Cost</button>
                 </div>
                 <div class="segmented-control compact">
-                  <button class="active" type="button">Today</button>
-                  <button type="button">Yesterday</button>
+                  <button class="active" type="button" data-compare-mode="today">Today</button>
+                  <button type="button" data-compare-mode="compare">Yesterday</button>
                 </div>
               </div>
             </section>
@@ -206,6 +207,18 @@
                 </div>
               </div>
               <div class="device-activity-list" id="device-activity-list"></div>
+              <article class="device-inspector" id="device-inspector">
+                <span class="section-kicker">Selected device</span>
+                <div>
+                  <strong id="device-inspector-title">Fridge</strong>
+                  <span id="device-inspector-status">suspected spike</span>
+                </div>
+                <p id="device-inspector-action">Reduce compressor cycling during the evening peak.</p>
+                <div class="device-inspector-stats">
+                  <span>Impact <b id="device-inspector-impact">78%</b></span>
+                  <span>Action <b id="device-inspector-priority">High</b></span>
+                </div>
+              </article>
             </section>
           </section>
 
@@ -238,6 +251,28 @@
               <p class="recommendation" id="insight-recommendation">
                 Shift high-load appliances outside evening peak.
               </p>
+              <div class="planner-card" aria-label="Load shift planner">
+                <div class="planner-heading">
+                  <div>
+                    <span class="section-kicker">Load Shift Planner</span>
+                    <strong id="planner-impact">Move 2h of flexible load</strong>
+                  </div>
+                  <div class="segmented-control compact">
+                    <button class="active" type="button" data-planner-mode="balanced">Balanced</button>
+                    <button type="button" data-planner-mode="eco">Eco</button>
+                    <button type="button" data-planner-mode="comfort">Comfort</button>
+                  </div>
+                </div>
+                <label class="range-control">
+                  <span>Shift window</span>
+                  <input id="shift-hours" type="range" min="0" max="4" step="1" value="2" />
+                </label>
+                <div class="planner-results">
+                  <span>Projected savings <b id="planner-savings">$3.10</b></span>
+                  <span>Peak reduction <b id="planner-peak">11%</b></span>
+                  <span>CO2 avoided <b id="planner-carbon">1.8 kg</b></span>
+                </div>
+              </div>
             </section>
 
             <section class="panel timeline-panel" aria-label="Anomalies timeline">
