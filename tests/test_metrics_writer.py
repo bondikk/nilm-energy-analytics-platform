@@ -2,7 +2,8 @@ import uuid
 from datetime import UTC, datetime
 
 from app.schemas.ingestion import IngestionMetricPayload
-from app.workers.metrics_writer import ResolvedIngestionDevice, build_energy_metric
+from app.services.nilm_anomaly_detection import NILMAnomalyConfig
+from app.workers.metrics_writer import ResolvedIngestionDevice, build_energy_metric, build_nilm_anomaly_config
 
 
 def test_build_energy_metric_maps_ingestion_payload_to_database_model() -> None:
@@ -30,3 +31,11 @@ def test_build_energy_metric_maps_ingestion_payload_to_database_model() -> None:
     assert metric.ts == payload.ts
     assert metric.active_power_w == 552.0
     assert metric.raw_payload == {"source": "mqtt"}
+
+
+def test_build_nilm_anomaly_config_reads_settings() -> None:
+    config = build_nilm_anomaly_config()
+
+    assert isinstance(config, NILMAnomalyConfig)
+    assert config.min_step_w > 0
+    assert config.lookback_samples > 0

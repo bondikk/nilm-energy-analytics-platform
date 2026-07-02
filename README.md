@@ -26,6 +26,7 @@ The dashboard turns raw meter readings into an operator-style view with:
 - load shift planner with savings, peak reduction, and CO2 estimates
 - MQTT to Redis Streams to TimescaleDB ingestion pipeline
 - NILM signal analysis for detecting load step events from meter readings
+- automatic anomaly creation from fresh NILM load events
 - demo simulator for generating realistic local data
 
 ## Screenshots
@@ -64,6 +65,8 @@ flowchart LR
   Consumer --> Stream["Redis Streams"]
   Stream --> Writer["Metrics writer worker"]
   Writer --> DB["PostgreSQL / TimescaleDB"]
+  Writer --> Detector["NILM anomaly detector"]
+  Detector --> AnomaliesDB["Anomaly records"]
 
   User["User"] --> Frontend["Static Energy Control Room dashboard"]
   Frontend --> API["FastAPI backend"]
@@ -92,7 +95,7 @@ flowchart LR
 | Migrations | Alembic |
 | Frontend | Static HTML, CSS, JavaScript, Canvas charts |
 | Streaming | MQTT consumer, Redis Streams, metrics writer worker |
-| NILM | Step-change event detection and load signature classification |
+| NILM | Step-change detection, load signature classification, anomaly generation |
 | Local stack | Docker Compose |
 | Quality | Pytest, Ruff, Mypy |
 
@@ -139,6 +142,8 @@ flowchart LR
   HVAC/heater, or large resistive load.
 - Estimates event confidence, score, duration, and energy impact when matching
   turn-on and turn-off edges are visible in the signal.
+- The metrics writer can turn fresh high-confidence NILM events into open
+  `POWER_SPIKE` anomalies with severity, score, and event metadata.
 
 ### Streaming Ingestion
 
@@ -147,6 +152,7 @@ flowchart LR
 - Metrics writer consumes the stream as a Redis consumer group.
 - Writer resolves the device and persists readings into TimescaleDB-backed
   `energy_metrics`.
+- Fresh NILM load events can automatically create deduplicated anomaly records.
 - Successfully written stream messages are acknowledged.
 
 ## Quick Start
@@ -249,6 +255,7 @@ Pipeline modules:
 | `app.services.redis_streams` | Wraps Redis Stream publish/read/ack behavior |
 | `app.workers.metrics_writer` | Consumes stream messages and writes energy metrics to the database |
 | `app.services.nilm_analysis` | Detects load step events and classifies likely appliance signatures |
+| `app.services.nilm_anomaly_detection` | Creates deduplicated anomalies from fresh NILM events |
 
 ## Project Structure
 
@@ -306,6 +313,7 @@ VoltPulse currently includes:
 - interactive Energy Control Room frontend
 - API tests and frontend asset checks
 - NILM signal analysis endpoint over stored meter readings
+- automatic anomaly creation from streaming NILM events
 
 Good next steps:
 

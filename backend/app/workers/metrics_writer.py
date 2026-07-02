@@ -7,11 +7,13 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import settings
 from app.infrastructure.database.models.device import Device
 from app.infrastructure.database.models.energy_metric import EnergyMetric
 from app.infrastructure.database.models.home import Home
 from app.infrastructure.database.session import AsyncSessionLocal
 from app.schemas.ingestion import IngestionMetricPayload
+from app.services.nilm_anomaly_detection import NILMAnomalyConfig, create_nilm_anomalies_for_metric
 from app.services.redis_streams import RedisMetricStream, build_redis_url
 
 
@@ -92,8 +94,25 @@ async def write_metric_payload(
     if device is not None:
         device.last_seen_at = payload.ts
 
+    await create_nilm_anomalies_for_metric(
+        session=session,
+        resolved=resolved,
+        metric_ts=payload.ts,
+        config=build_nilm_anomaly_config(),
+    )
+
     await session.commit()
     return merged
+
+
+def build_nilm_anomaly_config() -> NILMAnomalyConfig:
+    return NILMAnomalyConfig(
+        enabled=settings.nilm_anomaly_detection_enabled,
+        min_step_w=settings.nilm_anomaly_min_step_w,
+        lookback_samples=settings.nilm_anomaly_lookback_samples,
+        freshness_seconds=settings.nilm_anomaly_freshness_seconds,
+        duplicate_window_seconds=settings.nilm_anomaly_duplicate_window_seconds,
+    )
 
 
 async def resolve_ingestion_device(
