@@ -20,13 +20,34 @@
         </div>
 
         <nav class="nav-stack" aria-label="Workspace views">
-          <button class="nav-item active" type="button" data-view="overview">Overview</button>
-          <button class="nav-item" type="button" data-view="homes">Homes</button>
-          <button class="nav-item" type="button" data-view="devices">Devices</button>
-          <button class="nav-item" type="button" data-view="analytics">Analytics</button>
-          <button class="nav-item" type="button" data-view="anomalies">Anomalies</button>
-          <button class="nav-item" type="button" data-view="simulator">Simulator</button>
-          <button class="nav-item" type="button" data-view="settings">Settings</button>
+          <button class="nav-item active" type="button" data-view="overview">
+            <span class="nav-icon nav-icon-overview" aria-hidden="true"></span>
+            Overview
+          </button>
+          <button class="nav-item" type="button" data-view="homes">
+            <span class="nav-icon nav-icon-home" aria-hidden="true"></span>
+            Homes
+          </button>
+          <button class="nav-item" type="button" data-view="devices">
+            <span class="nav-icon nav-icon-device" aria-hidden="true"></span>
+            Devices
+          </button>
+          <button class="nav-item" type="button" data-view="analytics">
+            <span class="nav-icon nav-icon-analytics" aria-hidden="true"></span>
+            Analytics
+          </button>
+          <button class="nav-item" type="button" data-view="anomalies">
+            <span class="nav-icon nav-icon-anomaly" aria-hidden="true"></span>
+            Anomalies
+          </button>
+          <button class="nav-item" type="button" data-view="simulator">
+            <span class="nav-icon nav-icon-simulator" aria-hidden="true"></span>
+            Simulator
+          </button>
+          <button class="nav-item" type="button" data-view="settings">
+            <span class="nav-icon nav-icon-settings" aria-hidden="true"></span>
+            Settings
+          </button>
         </nav>
 
         <form id="login-form" class="login-panel">
@@ -58,7 +79,7 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Control room</p>
-            <h1 id="view-title">Overview</h1>
+            <h1 id="view-title">Energy Control Room</h1>
           </div>
           <div class="topbar-actions">
             <button id="export-button" class="secondary-button" type="button">Export CSV</button>
@@ -93,49 +114,140 @@
         <section id="message" class="message" hidden></section>
 
         <section class="view active" id="view-overview" data-view-panel="overview">
+          <section class="intelligence-strip" aria-label="Today's intelligence">
+            <div>
+              <span class="section-kicker">Today's Intelligence</span>
+              <p id="intelligence-line">
+                Consumption is 18% above the usual evening baseline. Peak detected near 18:02.
+                Main Smart Meter is stable.
+              </p>
+            </div>
+            <div class="status-pack" aria-label="Energy status">
+              <span class="status-chip stable">Stable</span>
+              <span class="status-chip warning">Peak Load</span>
+              <span class="status-chip critical">Anomaly Detected</span>
+              <span class="status-chip meter" id="intelligence-device-chip">Main Smart Meter</span>
+            </div>
+          </section>
+
           <section class="metric-grid" aria-label="Energy summary">
-            <article class="metric-tile accent-tile">
-              <span>Energy</span>
-              <strong id="energy-total">0 kWh</strong>
-              <small id="energy-context">Selected period</small>
+            <article class="metric-tile energy-card">
+              <div>
+                <span>Energy</span>
+                <strong id="energy-total">0 kWh</strong>
+                <small id="energy-context">Selected period</small>
+              </div>
+              <canvas class="metric-sparkline" id="energy-sparkline" width="180" height="54"></canvas>
             </article>
-            <article class="metric-tile">
-              <span>Avg power</span>
-              <strong id="avg-power">0 W</strong>
-              <small id="sample-count">0 samples</small>
+            <article class="metric-tile average-card">
+              <div>
+                <span>Avg power</span>
+                <strong id="avg-power">0 W</strong>
+                <small id="sample-count">0 samples</small>
+              </div>
+              <canvas class="metric-sparkline" id="avg-power-sparkline" width="180" height="54"></canvas>
             </article>
-            <article class="metric-tile">
-              <span>Peak power</span>
-              <strong id="peak-power">0 W</strong>
-              <small id="power-range">0 W min</small>
+            <article class="metric-tile peak-card">
+              <div>
+                <span>Peak power</span>
+                <strong id="peak-power">0 W</strong>
+                <small id="power-range">0 W min</small>
+              </div>
+              <canvas class="metric-sparkline" id="peak-power-sparkline" width="180" height="54"></canvas>
             </article>
-            <article class="metric-tile">
-              <span>Grid quality</span>
-              <strong id="avg-voltage">0 V</strong>
-              <small id="avg-current">0 A avg current</small>
+            <article class="metric-tile quality-card">
+              <div>
+                <span>Grid quality</span>
+                <strong id="avg-voltage">0 V</strong>
+                <small id="avg-current">0 A avg current</small>
+              </div>
+              <canvas class="metric-sparkline" id="grid-quality-sparkline" width="180" height="54"></canvas>
             </article>
           </section>
 
           <section class="dashboard-grid">
-            <section class="panel chart-panel" aria-label="Active power chart">
+            <section class="panel chart-panel power-card" aria-label="Active power chart">
               <div class="panel-heading">
                 <div>
-                  <h2>Active power</h2>
+                  <h2>Active Power</h2>
                   <span id="chart-subtitle">No device selected</span>
                 </div>
-                <span id="last-refresh" class="status-chip">Not loaded</span>
+                <span id="last-refresh" class="status-chip meter">Not loaded</span>
               </div>
-              <canvas id="power-chart" width="1100" height="360"></canvas>
+              <div class="chart-stage">
+                <div class="chart-blueprint" aria-hidden="true"></div>
+                <canvas id="power-chart" width="1100" height="430"></canvas>
+                <div class="chart-tooltip" id="chart-tooltip">
+                  <strong>Hover tooltip</strong>
+                  <span>Power: 0 W</span>
+                  <span>Peak: 0 W</span>
+                  <span>Voltage: 0 V</span>
+                </div>
+              </div>
+              <div class="chart-toolbar" aria-label="Chart controls">
+                <div class="segmented-control">
+                  <button class="active" type="button">Power</button>
+                  <button type="button">Voltage</button>
+                  <button type="button">Current</button>
+                  <button type="button">Cost</button>
+                </div>
+                <div class="segmented-control compact">
+                  <button class="active" type="button">Today</button>
+                  <button type="button">Yesterday</button>
+                </div>
+              </div>
             </section>
 
-            <section class="panel" aria-label="Operations">
+            <section class="panel device-panel" aria-label="Device activity">
               <div class="panel-heading">
                 <div>
-                  <h2>Operations</h2>
+                  <h2>Device Activity</h2>
                   <span id="ops-subtitle">Current home</span>
                 </div>
               </div>
-              <div class="operations-list" id="operations-list"></div>
+              <div class="device-activity-list" id="device-activity-list"></div>
+            </section>
+          </section>
+
+          <section class="bottom-grid">
+            <section class="panel insights-panel" aria-label="Energy insights">
+              <div class="panel-heading">
+                <div>
+                  <h2>Energy Insights</h2>
+                  <span>Smart savings and load context</span>
+                </div>
+              </div>
+              <div class="insight-grid">
+                <article>
+                  <span>Projected monthly cost</span>
+                  <strong id="insight-monthly-cost">$29.50</strong>
+                </article>
+                <article>
+                  <span>Always-on load</span>
+                  <strong id="insight-always-on">32.3 kWh</strong>
+                </article>
+                <article>
+                  <span>Saving opportunity</span>
+                  <strong id="insight-saving">-1.5 kWh</strong>
+                </article>
+                <article>
+                  <span>Most expensive hour</span>
+                  <strong id="insight-expensive-hour">18:00-19:00</strong>
+                </article>
+              </div>
+              <p class="recommendation" id="insight-recommendation">
+                Shift high-load appliances outside evening peak.
+              </p>
+            </section>
+
+            <section class="panel timeline-panel" aria-label="Anomalies timeline">
+              <div class="panel-heading">
+                <div>
+                  <h2>Anomalies Timeline</h2>
+                  <span>Recent events</span>
+                </div>
+              </div>
+              <div class="timeline-list" id="timeline-list"></div>
             </section>
           </section>
         </section>
@@ -370,8 +482,8 @@
             <div>
               <h2>Local commands</h2>
               <pre><code>docker compose up --build
-docker compose exec backend python -m app.tools.seed_demo_data
-.venv/bin/python -m http.server 5173 --bind 127.0.0.1 --directory frontend</code></pre>
+.venv/bin/python -m http.server 5173 --bind 127.0.0.1 --directory frontend
+curl -X POST http://127.0.0.1:8000/demo/seed -H "Content-Type: application/json" -d '{"email":"demo@voltpulse.local","password":"demo-password","sample_count":96,"interval_minutes":15}'</code></pre>
             </div>
           </section>
         </section>
