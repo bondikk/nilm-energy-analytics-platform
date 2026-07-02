@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     db_pool_size: int = 10
     db_max_overflow: int = 20
 
+    frontend_origins: list[str] = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ]
+
     @property
     def database_url(self) -> str:
         password = quote_plus(self.postgres_password.get_secret_value())

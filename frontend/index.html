@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VoltPulse Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M18.7 2 6 18.1h9.1L12.8 30 26 13h-9.4L18.7 2Z" />
+          </svg>
+          <div>
+            <strong>VoltPulse</strong>
+            <span>Energy Analytics</span>
+          </div>
+        </div>
+
+        <form id="login-form" class="login-panel">
+          <label>
+            Email
+            <input id="email" name="email" type="email" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <button type="submit">Sign in</button>
+        </form>
+
+        <div class="session-panel">
+          <span id="session-label">Not signed in</span>
+          <button id="sign-out-button" type="button">Sign out</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Live workspace</p>
+            <h1>Energy overview</h1>
+          </div>
+          <button id="refresh-button" type="button">Refresh</button>
+        </header>
+
+        <section class="controls" aria-label="Dashboard filters">
+          <label>
+            Home
+            <select id="home-select"></select>
+          </label>
+          <label>
+            Device
+            <select id="device-select"></select>
+          </label>
+        </section>
+
+        <section id="message" class="message" hidden></section>
+
+        <section class="metric-grid" aria-label="Energy summary">
+          <article class="metric-tile">
+            <span>Samples</span>
+            <strong id="sample-count">0</strong>
+          </article>
+          <article class="metric-tile">
+            <span>Energy</span>
+            <strong id="energy-total">0 kWh</strong>
+          </article>
+          <article class="metric-tile">
+            <span>Avg power</span>
+            <strong id="avg-power">0 W</strong>
+          </article>
+          <article class="metric-tile">
+            <span>Peak power</span>
+            <strong id="peak-power">0 W</strong>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <section class="panel chart-panel" aria-label="Active power chart">
+            <div class="panel-heading">
+              <div>
+                <h2>Active power</h2>
+                <span id="chart-subtitle">No device selected</span>
+              </div>
+            </div>
+            <canvas id="power-chart" width="900" height="320"></canvas>
+          </section>
+
+          <section class="panel" aria-label="Anomalies">
+            <div class="panel-heading">
+              <div>
+                <h2>Anomalies</h2>
+                <span id="anomaly-count">0 open items</span>
+              </div>
+            </div>
+            <div id="anomaly-list" class="anomaly-list"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

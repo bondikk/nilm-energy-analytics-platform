@@ -18,6 +18,18 @@ Open the API docs:
 http://127.0.0.1:8000/docs
 ```
 
+Start the static dashboard in another terminal:
+
+```bash
+.venv/bin/python -m http.server 5173 --bind 127.0.0.1 --directory frontend
+```
+
+Open the dashboard:
+
+```text
+http://127.0.0.1:5173
+```
+
 ## Seed Demo Data
 
 After the containers are running and migrations have completed, seed a demo
@@ -72,3 +84,9 @@ cd backend
 - `energy-metrics`: readings per device
 - `anomalies`: anomaly management per home
 - `analytics`: energy summary per home
+
+## Dashboard
+
+The static dashboard in `frontend/` connects to the local backend at
+`http://127.0.0.1:8000`. It supports demo login, home/device selection, energy
+summary tiles, an active power chart, and anomalies.
