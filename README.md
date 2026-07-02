@@ -25,6 +25,7 @@ The dashboard turns raw meter readings into an operator-style view with:
 - anomaly timeline and triage workflow
 - load shift planner with savings, peak reduction, and CO2 estimates
 - MQTT to Redis Streams to TimescaleDB ingestion pipeline
+- NILM signal analysis for detecting load step events from meter readings
 - demo simulator for generating realistic local data
 
 ## Screenshots
@@ -71,6 +72,7 @@ flowchart LR
   API --> Metrics["Energy metrics API"]
   API --> Anomalies["Anomaly workflow"]
   API --> Analytics["Analytics summary"]
+  API --> NILM["NILM signal analysis"]
   API --> Demo["Demo data seeding"]
   Metrics --> DB
   Anomalies --> DB
@@ -90,6 +92,7 @@ flowchart LR
 | Migrations | Alembic |
 | Frontend | Static HTML, CSS, JavaScript, Canvas charts |
 | Streaming | MQTT consumer, Redis Streams, metrics writer worker |
+| NILM | Step-change event detection and load signature classification |
 | Local stack | Docker Compose |
 | Quality | Pytest, Ruff, Mypy |
 
@@ -124,8 +127,18 @@ flowchart LR
 - Homes and devices management.
 - Energy metric ingestion and retrieval.
 - Home-level analytics summary.
+- NILM analysis endpoint for power step detection and load signatures.
 - Anomaly filtering, acknowledgement, and resolution.
 - Local demo data seeding through `POST /demo/seed`.
+
+### NILM Signal Analysis
+
+- Reads stored `energy_metrics` samples for a home or specific device.
+- Smooths active power readings and detects significant step changes.
+- Classifies likely load signatures such as compressor, flexible appliance,
+  HVAC/heater, or large resistive load.
+- Estimates event confidence, score, duration, and energy impact when matching
+  turn-on and turn-off edges are visible in the signal.
 
 ### Streaming Ingestion
 
@@ -212,6 +225,7 @@ docker compose exec mosquitto mosquitto_pub \
 | `/homes/{home_id}/devices` | Devices per home |
 | `/homes/{home_id}/devices/{device_id}/metrics` | Energy readings |
 | `/homes/{home_id}/analytics/summary` | Aggregated energy analytics |
+| `/homes/{home_id}/nilm/analysis` | NILM load event analysis |
 | `/homes/{home_id}/anomalies` | Anomaly triage |
 | `/demo/seed` | Local demo dataset generation |
 
@@ -234,6 +248,7 @@ Pipeline modules:
 | `app.services.mqtt_consumer` | Subscribes to MQTT and publishes valid payloads to Redis Streams |
 | `app.services.redis_streams` | Wraps Redis Stream publish/read/ack behavior |
 | `app.workers.metrics_writer` | Consumes stream messages and writes energy metrics to the database |
+| `app.services.nilm_analysis` | Detects load step events and classifies likely appliance signatures |
 
 ## Project Structure
 
@@ -290,11 +305,12 @@ VoltPulse currently includes:
 - authenticated dashboard connection
 - interactive Energy Control Room frontend
 - API tests and frontend asset checks
+- NILM signal analysis endpoint over stored meter readings
 
 Good next steps:
 
-- add real NILM disaggregation model output
 - add WebSocket or MQTT-powered live updates
+- add trained NILM disaggregation model output
 - persist user-defined planner scenarios
 - add production deployment configuration
 - add screenshot assets to this README
