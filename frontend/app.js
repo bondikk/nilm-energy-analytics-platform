@@ -16,6 +16,13 @@ const state = {
   period: localStorage.getItem("voltpulse_period") || "24h",
   autoRefresh: localStorage.getItem("voltpulse_auto_refresh") === "true",
   autoRefreshTimer: null,
+  chartMode: localStorage.getItem("voltpulse_chart_mode") || "power",
+  compareMode: localStorage.getItem("voltpulse_compare_mode") || "today",
+  chartHoverIndex: null,
+  overviewChart: null,
+  selectedActivityId: localStorage.getItem("voltpulse_activity_id") || "fridge",
+  plannerMode: localStorage.getItem("voltpulse_planner_mode") || "balanced",
+  shiftHours: Number(localStorage.getItem("voltpulse_shift_hours") || 2),
 };
 
 const elements = {
@@ -54,12 +61,25 @@ const elements = {
   chartTooltip: document.querySelector("#chart-tooltip"),
   powerChart: document.querySelector("#power-chart"),
   analyticsChart: document.querySelector("#analytics-chart"),
+  chartModeButtons: [...document.querySelectorAll("[data-chart-mode]")],
+  compareModeButtons: [...document.querySelectorAll("[data-compare-mode]")],
   deviceActivityList: document.querySelector("#device-activity-list"),
+  deviceInspectorTitle: document.querySelector("#device-inspector-title"),
+  deviceInspectorStatus: document.querySelector("#device-inspector-status"),
+  deviceInspectorAction: document.querySelector("#device-inspector-action"),
+  deviceInspectorImpact: document.querySelector("#device-inspector-impact"),
+  deviceInspectorPriority: document.querySelector("#device-inspector-priority"),
   insightMonthlyCost: document.querySelector("#insight-monthly-cost"),
   insightAlwaysOn: document.querySelector("#insight-always-on"),
   insightSaving: document.querySelector("#insight-saving"),
   insightExpensiveHour: document.querySelector("#insight-expensive-hour"),
   insightRecommendation: document.querySelector("#insight-recommendation"),
+  plannerModeButtons: [...document.querySelectorAll("[data-planner-mode]")],
+  shiftHours: document.querySelector("#shift-hours"),
+  plannerImpact: document.querySelector("#planner-impact"),
+  plannerSavings: document.querySelector("#planner-savings"),
+  plannerPeak: document.querySelector("#planner-peak"),
+  plannerCarbon: document.querySelector("#planner-carbon"),
   timelineList: document.querySelector("#timeline-list"),
   homeForm: document.querySelector("#home-form"),
   homeName: document.querySelector("#home-name"),
@@ -161,6 +181,81 @@ elements.autoRefreshToggle.addEventListener("change", () => {
   renderSettings();
 });
 
+elements.chartModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.chartMode = button.dataset.chartMode || "power";
+    state.chartHoverIndex = null;
+    localStorage.setItem("voltpulse_chart_mode", state.chartMode);
+    updateChartControls();
+    renderCharts();
+  });
+});
+
+elements.compareModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.compareMode = button.dataset.compareMode || "today";
+    localStorage.setItem("voltpulse_compare_mode", state.compareMode);
+    updateChartControls();
+    renderCharts();
+  });
+});
+
+elements.powerChart.addEventListener("mousemove", (event) => {
+  if (!state.overviewChart?.points?.length) {
+    return;
+  }
+
+  const rect = elements.powerChart.getBoundingClientRect();
+  const canvasX = (event.clientX - rect.left) * (elements.powerChart.width / rect.width);
+  const hoverIndex = nearestPointIndex(state.overviewChart.points, canvasX);
+  if (hoverIndex !== state.chartHoverIndex) {
+    state.chartHoverIndex = hoverIndex;
+    renderPowerChart(elements.powerChart, state.metrics, "overview");
+  }
+});
+
+elements.powerChart.addEventListener("mouseleave", () => {
+  if (state.chartHoverIndex !== null) {
+    state.chartHoverIndex = null;
+    renderPowerChart(elements.powerChart, state.metrics, "overview");
+  }
+});
+
+elements.deviceActivityList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-activity-id]");
+  if (!row) {
+    return;
+  }
+  selectDeviceActivity(row.dataset.activityId);
+});
+
+elements.deviceActivityList.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+  const row = event.target.closest("[data-activity-id]");
+  if (!row) {
+    return;
+  }
+  event.preventDefault();
+  selectDeviceActivity(row.dataset.activityId);
+});
+
+elements.plannerModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.plannerMode = button.dataset.plannerMode || "balanced";
+    localStorage.setItem("voltpulse_planner_mode", state.plannerMode);
+    updatePlannerControls();
+    renderEnergyPlanner();
+  });
+});
+
+elements.shiftHours.addEventListener("input", () => {
+  state.shiftHours = Number(elements.shiftHours.value);
+  localStorage.setItem("voltpulse_shift_hours", String(state.shiftHours));
+  renderEnergyPlanner();
+});
+
 elements.homeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await createHome();
@@ -193,6 +288,8 @@ elements.seedForm.addEventListener("submit", async (event) => {
 });
 
 setActiveView(state.activeView);
+updateChartControls();
+updatePlannerControls();
 updateSession();
 clearWorkspace();
 configureAutoRefresh();
@@ -298,6 +395,7 @@ async function loadSelectedData() {
   renderSummary();
   renderCharts();
   renderReadings();
+  renderAnomalyTimeline();
   renderDeviceActivity();
   renderSettings();
 }
@@ -504,14 +602,19 @@ function renderDevices() {
 
 function renderSummary() {
   const summary = state.summary || {};
+  const avgPower = summary.active_power_w_avg ?? averageMetric("active_power_w");
+  const peakPower = summary.active_power_w_max ?? getPeakPowerValue();
+  const minPower = summary.active_power_w_min ?? minMetric("active_power_w");
+  const avgVoltage = summary.voltage_v_avg ?? averageMetric("voltage_v");
+  const avgCurrent = summary.current_a_avg ?? averageMetric("current_a");
   elements.sampleCount.textContent = `${formatNumber(summary.sample_count || 0)} samples`;
   elements.energyTotal.textContent = formatEnergy(summary.energy_wh_delta_total);
   elements.energyContext.textContent = labelForPeriod();
-  elements.avgPower.textContent = formatWatts(summary.active_power_w_avg);
-  elements.peakPower.textContent = formatWatts(summary.active_power_w_max);
-  elements.powerRange.textContent = `${formatWatts(summary.active_power_w_min)} min`;
-  elements.avgVoltage.textContent = formatVolts(summary.voltage_v_avg);
-  elements.avgCurrent.textContent = `${formatAmps(summary.current_a_avg)} avg current`;
+  elements.avgPower.textContent = formatWatts(avgPower);
+  elements.peakPower.textContent = formatWatts(peakPower);
+  elements.powerRange.textContent = `${formatWatts(minPower)} min`;
+  elements.avgVoltage.textContent = formatVolts(avgVoltage);
+  elements.avgCurrent.textContent = `${formatAmps(avgCurrent)} avg current`;
   elements.analyticsTotal.textContent = formatEnergy(summary.energy_wh_delta_total);
   elements.lastRefresh.textContent = `Updated ${new Date().toLocaleTimeString([], {
     hour: "2-digit",
@@ -527,19 +630,23 @@ function renderCharts() {
   renderPowerChart(elements.analyticsChart, state.metrics, "analytics");
 
   const selectedDevice = state.devices.find((device) => device.id === state.selectedDeviceId);
+  const metric = getMetricConfig(state.chartMode);
   const subtitle = selectedDevice
-    ? `${selectedDevice.name} · ${state.metrics.length} samples`
+    ? `${selectedDevice.name} · ${metric.label} · ${state.metrics.length} samples`
     : "No device selected";
   elements.chartSubtitle.textContent = subtitle;
-  elements.analyticsSubtitle.textContent = `${subtitle} · ${labelForPeriod()}`;
+  elements.analyticsSubtitle.textContent = selectedDevice
+    ? `${selectedDevice.name} · Power · ${state.metrics.length} samples · ${labelForPeriod()}`
+    : `No device selected · ${labelForPeriod()}`;
 }
 
 function renderIntelligence() {
   const selectedDevice = state.devices.find((device) => device.id === state.selectedDeviceId);
   const deviceName = selectedDevice?.name || "Main Smart Meter";
   const summary = state.summary || {};
-  const peakText = summary.active_power_w_max
-    ? `${formatWatts(summary.active_power_w_max)} peak detected near 18:02`
+  const peakPower = getPeakPowerValue();
+  const peakText = peakPower
+    ? `${formatWatts(peakPower)} peak detected near 18:02`
     : "Peak detected near 18:02";
   elements.intelligenceLine.textContent = `Consumption is 18% above the usual evening baseline. ${peakText}. ${deviceName} is stable.`;
   elements.intelligenceDeviceChip.textContent = deviceName;
@@ -574,6 +681,34 @@ function renderEnergyInsights() {
   elements.insightSaving.textContent = `-${saving.toFixed(1)} kWh`;
   elements.insightExpensiveHour.textContent = "18:00-19:00";
   elements.insightRecommendation.textContent = "Shift high-load appliances outside evening peak.";
+  renderEnergyPlanner();
+}
+
+function getPeakPowerValue() {
+  if (state.summary?.active_power_w_max) {
+    return state.summary.active_power_w_max;
+  }
+  const values = state.metrics
+    .map((metric) => metric.active_power_w)
+    .filter((value) => typeof value === "number");
+  return values.length ? Math.max(...values) : 0;
+}
+
+function averageMetric(key) {
+  const values = state.metrics
+    .map((metric) => metric[key])
+    .filter((value) => typeof value === "number");
+  if (values.length === 0) {
+    return 0;
+  }
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function minMetric(key) {
+  const values = state.metrics
+    .map((metric) => metric[key])
+    .filter((value) => typeof value === "number");
+  return values.length ? Math.min(...values) : 0;
 }
 
 function renderPowerChart(canvas, metrics, mode) {
@@ -588,13 +723,17 @@ function renderPowerChart(canvas, metrics, mode) {
   drawChartGrid(context, width, height, mode);
 
   const ordered = [...metrics].reverse();
+  const metricConfig = getMetricConfig(mode === "analytics" ? "power" : state.chartMode);
   const values = ordered
-    .map((metric) => metric.active_power_w)
+    .map((metric) => metricConfig.read(metric))
     .filter((value) => typeof value === "number");
 
   if (values.length === 0) {
     drawEmptyChart(context, width, height, mode);
     updateChartTooltip(null);
+    if (mode === "overview") {
+      state.overviewChart = null;
+    }
     return;
   }
 
@@ -606,18 +745,23 @@ function renderPowerChart(canvas, metrics, mode) {
     x: padding + (index / Math.max(values.length - 1, 1)) * (width - padding * 2),
     y: height - padding - ((value - minValue) / spread) * (height - padding * 2),
     value,
+    metric: ordered[index],
   }));
 
   const baselineY = height - padding;
   const glowGradient = context.createLinearGradient(0, 0, width, 0);
-  glowGradient.addColorStop(0, "#55f0ff");
-  glowGradient.addColorStop(0.48, "#7b61ff");
-  glowGradient.addColorStop(1, "#26ffd4");
+  glowGradient.addColorStop(0, metricConfig.gradient[0]);
+  glowGradient.addColorStop(0.5, metricConfig.gradient[1]);
+  glowGradient.addColorStop(1, metricConfig.gradient[2]);
 
   const areaGradient = context.createLinearGradient(0, padding, 0, baselineY);
-  areaGradient.addColorStop(0, "rgba(68, 230, 255, 0.35)");
+  areaGradient.addColorStop(0, metricConfig.fill);
   areaGradient.addColorStop(0.58, "rgba(124, 92, 255, 0.14)");
   areaGradient.addColorStop(1, "rgba(5, 8, 16, 0.02)");
+
+  if (mode === "overview" && state.compareMode === "compare") {
+    drawCompareSeries(context, values, minValue, spread, width, height, padding, metricConfig);
+  }
 
   context.beginPath();
   context.moveTo(points[0].x, baselineY);
@@ -646,7 +790,7 @@ function renderPowerChart(canvas, metrics, mode) {
     }
   });
   context.lineWidth = mode === "analytics" ? 4 : 3.5;
-  context.shadowColor = "rgba(66, 229, 255, 0.55)";
+  context.shadowColor = metricConfig.shadow;
   context.shadowBlur = mode === "analytics" ? 8 : 14;
   context.strokeStyle = glowGradient;
   context.stroke();
@@ -680,14 +824,27 @@ function renderPowerChart(canvas, metrics, mode) {
     context.fillStyle = "#fff7fb";
     context.textAlign = "center";
     context.fillText(label, labelX + labelWidth / 2, labelY + 17);
-    updateChartTooltip({ peak, maxValue, minValue, width, height, padding });
+    updateChartTooltip({ point: peak, maxValue, metricConfig, width, height, padding, isHover: false });
   }
 
   context.fillStyle = "rgba(222, 232, 248, 0.72)";
   context.font = "13px system-ui";
   context.textAlign = "left";
-  context.fillText(`${Math.round(maxValue).toLocaleString("en-US")} W peak`, padding, 26);
-  context.fillText(`${Math.round(minValue).toLocaleString("en-US")} W min`, padding, height - 16);
+  context.fillText(`${metricConfig.format(maxValue)} peak`, padding, 26);
+  context.fillText(`${metricConfig.format(minValue)} min`, padding, height - 16);
+
+  if (mode === "overview") {
+    state.overviewChart = {
+      points,
+      metricConfig,
+      maxValue,
+      minValue,
+      width,
+      height,
+      padding,
+    };
+    drawHoverState(context, state.overviewChart);
+  }
 }
 
 function drawChartGrid(context, width, height, mode) {
@@ -722,6 +879,135 @@ function drawEmptyChart(context, width, height, mode) {
   context.font = "600 18px system-ui";
   context.textAlign = "center";
   context.fillText("No metric samples", width / 2, height / 2);
+}
+
+function getMetricConfig(mode) {
+  const configs = {
+    power: {
+      label: "Power",
+      unit: "W",
+      gradient: ["#55f0ff", "#7b61ff", "#26ffd4"],
+      fill: "rgba(68, 230, 255, 0.35)",
+      shadow: "rgba(66, 229, 255, 0.55)",
+      read: (metric) => metric.active_power_w,
+      format: formatWatts,
+    },
+    voltage: {
+      label: "Voltage",
+      unit: "V",
+      gradient: ["#aeb9d8", "#55f0ff", "#7b61ff"],
+      fill: "rgba(174, 185, 216, 0.26)",
+      shadow: "rgba(174, 185, 216, 0.42)",
+      read: (metric) => metric.voltage_v,
+      format: formatVolts,
+    },
+    current: {
+      label: "Current",
+      unit: "A",
+      gradient: ["#ffcf5a", "#7b61ff", "#55f0ff"],
+      fill: "rgba(255, 207, 90, 0.24)",
+      shadow: "rgba(255, 207, 90, 0.36)",
+      read: (metric) => metric.current_a,
+      format: formatAmps,
+    },
+    cost: {
+      label: "Cost",
+      unit: "$",
+      gradient: ["#ffcf5a", "#ff5d7a", "#7b61ff"],
+      fill: "rgba(255, 207, 90, 0.2)",
+      shadow: "rgba(255, 207, 90, 0.36)",
+      read: estimateMetricCost,
+      format: formatCurrency,
+    },
+  };
+  return configs[mode] || configs.power;
+}
+
+function estimateMetricCost(metric) {
+  const energyWh = Number(metric.energy_wh_delta || 0);
+  const fallbackWh = Number(metric.active_power_w || 0) * 0.25;
+  return ((energyWh || fallbackWh) / 1000) * 0.23;
+}
+
+function drawCompareSeries(context, values, minValue, spread, width, height, padding, metricConfig) {
+  const comparePoints = values.map((value, index) => {
+    const drift = Math.sin(index / 4) * spread * 0.045;
+    const baseline = value * 0.88 + drift;
+    return {
+      x: padding + (index / Math.max(values.length - 1, 1)) * (width - padding * 2),
+      y: height - padding - ((baseline - minValue) / spread) * (height - padding * 2),
+    };
+  });
+
+  context.save();
+  context.beginPath();
+  comparePoints.forEach((point, index) => {
+    if (index === 0) {
+      context.moveTo(point.x, point.y);
+    } else {
+      const previous = comparePoints[index - 1];
+      const controlX = (previous.x + point.x) / 2;
+      context.bezierCurveTo(controlX, previous.y, controlX, point.y, point.x, point.y);
+    }
+  });
+  context.setLineDash([9, 8]);
+  context.lineWidth = 2;
+  context.strokeStyle = "rgba(195, 204, 220, 0.46)";
+  context.stroke();
+  context.setLineDash([]);
+  context.fillStyle = "rgba(195, 204, 220, 0.68)";
+  context.font = "12px system-ui";
+  context.textAlign = "right";
+  context.fillText(`Yesterday ${metricConfig.label}`, width - padding, padding - 14);
+  context.restore();
+}
+
+function drawHoverState(context, chartState) {
+  const { points, metricConfig, maxValue, width, height, padding } = chartState;
+  const fallbackIndex = points.reduce(
+    (bestIndex, point, index) => (point.value > points[bestIndex].value ? index : bestIndex),
+    0
+  );
+  const hoverIndex = state.chartHoverIndex ?? fallbackIndex;
+  const point = points[hoverIndex];
+  if (!point) {
+    return;
+  }
+
+  context.save();
+  context.strokeStyle = "rgba(255, 255, 255, 0.18)";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(point.x, padding);
+  context.lineTo(point.x, height - padding);
+  context.stroke();
+
+  context.fillStyle = "#ffffff";
+  context.beginPath();
+  context.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = metricConfig.gradient[0];
+  context.lineWidth = 2;
+  context.stroke();
+  context.restore();
+
+  updateChartTooltip({
+    point,
+    maxValue,
+    metricConfig,
+    width,
+    height,
+    padding,
+    isHover: state.chartHoverIndex !== null,
+  });
+}
+
+function nearestPointIndex(points, canvasX) {
+  return points.reduce((bestIndex, point, index) => {
+    const bestDistance = Math.abs(points[bestIndex].x - canvasX);
+    const currentDistance = Math.abs(point.x - canvasX);
+    return currentDistance < bestDistance ? index : bestIndex;
+  }, 0);
 }
 
 function renderSparkline(canvas, values, color, emphasizePeak = false) {
@@ -777,27 +1063,32 @@ function updateChartTooltip(chartState) {
   if (!elements.chartTooltip) {
     return;
   }
+  const tooltipLines = elements.chartTooltip.querySelectorAll("span");
   if (!chartState) {
     elements.chartTooltip.querySelector("strong").textContent = "No signal yet";
-    elements.chartTooltip.querySelectorAll("span")[0].textContent = "Power: 0 W";
-    elements.chartTooltip.querySelectorAll("span")[1].textContent = "Peak: 0 W";
-    elements.chartTooltip.querySelectorAll("span")[2].textContent = "Voltage: 0 V";
+    tooltipLines[0].textContent = "Power: 0 W";
+    tooltipLines[1].textContent = "Peak: 0 W";
+    tooltipLines[2].textContent = "Voltage: 0 V";
+    if (tooltipLines[3]) {
+      tooltipLines[3].textContent = "Time: --";
+    }
     elements.chartTooltip.style.left = "58%";
     elements.chartTooltip.style.top = "34%";
     return;
   }
 
-  const { peak, maxValue, width, height, padding } = chartState;
-  const tooltipX = Math.min(Math.max((peak.x / width) * 100 + 4, 48), 77);
-  const tooltipY = Math.min(Math.max((peak.y / height) * 100 - 10, 12), 58);
-  elements.chartTooltip.querySelector("strong").textContent = "Peak telemetry";
-  elements.chartTooltip.querySelectorAll("span")[0].textContent = `Power: ${formatWatts(
-    state.summary?.active_power_w_avg
-  )}`;
-  elements.chartTooltip.querySelectorAll("span")[1].textContent = `Peak: ${formatWatts(maxValue)}`;
-  elements.chartTooltip.querySelectorAll("span")[2].textContent = `Voltage: ${formatVolts(
-    state.summary?.voltage_v_avg
-  )}`;
+  const { point, maxValue, metricConfig, width, height, padding, isHover } = chartState;
+  const tooltipX = Math.min(Math.max((point.x / width) * 100 + 4, 48), 77);
+  const tooltipY = Math.min(Math.max((point.y / height) * 100 - 10, 12), 58);
+  elements.chartTooltip.querySelector("strong").textContent = isHover
+    ? "Live sample"
+    : "Peak telemetry";
+  tooltipLines[0].textContent = `${metricConfig.label}: ${metricConfig.format(point.value)}`;
+  tooltipLines[1].textContent = `Peak: ${metricConfig.format(maxValue)}`;
+  tooltipLines[2].textContent = `Voltage: ${formatVolts(point.metric?.voltage_v)}`;
+  if (tooltipLines[3]) {
+    tooltipLines[3].textContent = `Time: ${formatTime(point.metric?.ts)}`;
+  }
   elements.chartTooltip.style.left = `${tooltipX}%`;
   elements.chartTooltip.style.top = `${Math.max(8, Math.min(tooltipY, ((height - padding) / height) * 100))}%`;
 }
@@ -894,43 +1185,64 @@ function renderDeviceActivity() {
 
   const items = [
     {
+      id: "fridge",
       name: "Fridge",
       detail: "suspected spike",
       tone: "anomaly",
       impact: 78,
+      priority: "High",
+      action: "Reduce compressor cycling during the evening peak.",
       kind: "fridge",
       multiplier: 0.72,
     },
     {
+      id: "washer",
       name: "Washing Machine",
       detail: "active",
       tone: "active",
       impact: 85,
+      priority: "Medium",
+      action: "Move the next cycle outside 18:00-19:00.",
       kind: "washer",
       multiplier: 0.58,
     },
     {
+      id: "ac",
       name: "AC",
       detail: "peak load",
       tone: "warning",
       impact: 100,
+      priority: "High",
+      action: "Raise the setpoint by 1 degree during the peak window.",
       kind: "ac",
       multiplier: 1.1,
     },
     {
+      id: "always-on",
       name: "Always-on load",
       detail: selectedDevice ? `${selectedDevice.name} baseline` : "active",
       tone: "stable",
       impact: 39,
+      priority: "Low",
+      action: "Audit standby devices and schedule overnight idle checks.",
       kind: "meter",
       multiplier: 0.32,
     },
   ];
 
+  if (!items.some((item) => item.id === state.selectedActivityId)) {
+    state.selectedActivityId = items[0].id;
+  }
+
   items.slice(0, 4).forEach((item, index) => {
     const row = document.createElement("article");
     row.className = "device-activity-item";
     row.dataset.tone = item.tone;
+    row.dataset.activityId = item.id;
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-pressed", String(item.id === state.selectedActivityId));
+    row.classList.toggle("selected", item.id === state.selectedActivityId);
     row.innerHTML = `
       <span class="device-symbol" data-kind="${item.kind}" aria-hidden="true"></span>
       <div class="device-copy">
@@ -955,6 +1267,25 @@ function renderDeviceActivity() {
     }[item.tone];
     renderSparkline(row.querySelector(".device-sparkline"), series, color, item.tone === "anomaly");
   });
+  renderDeviceInspector(items);
+}
+
+function selectDeviceActivity(activityId) {
+  if (!activityId || activityId === state.selectedActivityId) {
+    return;
+  }
+  state.selectedActivityId = activityId;
+  localStorage.setItem("voltpulse_activity_id", state.selectedActivityId);
+  renderDeviceActivity();
+}
+
+function renderDeviceInspector(items) {
+  const item = items.find((entry) => entry.id === state.selectedActivityId) || items[0];
+  elements.deviceInspectorTitle.textContent = item.name;
+  elements.deviceInspectorStatus.textContent = item.detail;
+  elements.deviceInspectorAction.textContent = item.action;
+  elements.deviceInspectorImpact.textContent = `${item.impact}%`;
+  elements.deviceInspectorPriority.textContent = item.priority;
 }
 
 function renderAnomalyTimeline() {
@@ -968,7 +1299,7 @@ function renderAnomalyTimeline() {
     },
     {
       title: "Peak load detected",
-      detail: `${formatWatts(state.summary?.active_power_w_max)} near the evening baseline window.`,
+      detail: `${formatWatts(getPeakPowerValue())} near the evening baseline window.`,
       severity: "warning",
     },
     {
@@ -993,6 +1324,43 @@ function renderAnomalyTimeline() {
     row.querySelector("p").textContent = item.detail;
     elements.timelineList.append(row);
   }
+}
+
+function renderEnergyPlanner() {
+  const multipliers = {
+    balanced: { savings: 1, peak: 1, carbon: 1 },
+    eco: { savings: 1.34, peak: 1.18, carbon: 1.28 },
+    comfort: { savings: 0.68, peak: 0.74, carbon: 0.7 },
+  };
+  const multiplier = multipliers[state.plannerMode] || multipliers.balanced;
+  const hours = state.shiftHours;
+  const baseLoad = Number(state.summary?.active_power_w_avg || 540) / 1000;
+  const savings = hours * baseLoad * 0.23 * multiplier.savings * 1.25;
+  const peakReduction = Math.round(hours * 5.5 * multiplier.peak);
+  const carbon = hours * baseLoad * 1.7 * multiplier.carbon;
+
+  elements.shiftHours.value = String(hours);
+  elements.plannerImpact.textContent =
+    hours === 0 ? "No flexible load shift selected" : `Move ${hours}h of flexible load`;
+  elements.plannerSavings.textContent = formatCurrency(savings);
+  elements.plannerPeak.textContent = `${peakReduction}%`;
+  elements.plannerCarbon.textContent = `${carbon.toFixed(1)} kg`;
+}
+
+function updateChartControls() {
+  elements.chartModeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.chartMode === state.chartMode);
+  });
+  elements.compareModeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.compareMode === state.compareMode);
+  });
+}
+
+function updatePlannerControls() {
+  elements.plannerModeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.plannerMode === state.plannerMode);
+  });
+  elements.shiftHours.value = String(state.shiftHours);
 }
 
 function renderSeedResult(result) {
@@ -1291,6 +1659,20 @@ function formatEnergy(value) {
     return "0 kWh";
   }
   return `${(value / 1000).toFixed(2)} kWh`;
+}
+
+function formatCurrency(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function formatTime(value) {
+  if (!value) {
+    return "--";
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function formatDate(value) {
