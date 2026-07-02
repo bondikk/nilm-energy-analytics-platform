@@ -1,63 +1,212 @@
-# ⚡ VoltPulse Analytics: Cloud-Native NILM & Energy Analytics Platform
+# VoltPulse Analytics
 
-VoltPulse Analytics is a FastAPI-based NILM and energy analytics backend with
-PostgreSQL/TimescaleDB, Redis, Mosquitto, authentication, homes, devices,
-energy metrics, anomalies, demo data seeding, and analytics summary endpoints.
+Premium energy analytics platform for home electricity monitoring, smart meter
+telemetry, anomaly detection, and NILM-style load insights.
 
-## Run Locally
+VoltPulse combines a FastAPI backend, PostgreSQL/TimescaleDB storage, Redis,
+Mosquitto, demo data generation, and a polished dark "Energy Control Room"
+dashboard for exploring energy usage in a smart home.
 
-Start the full local stack:
+![VoltPulse Energy Control Room](docs/screenshots/01-energy-control-room.png)
+
+## Product Snapshot
+
+VoltPulse is built around one practical question:
+
+> What is happening in the home energy system right now, and what should the
+> user do next?
+
+The dashboard turns raw meter readings into an operator-style view with:
+
+- live energy KPIs and sparklines
+- active power, voltage, current, and estimated cost chart modes
+- Today vs Yesterday comparison overlay
+- device activity cards with impact indicators
+- anomaly timeline and triage workflow
+- load shift planner with savings, peak reduction, and CO2 estimates
+- demo simulator for generating realistic local data
+
+## Screenshots
+
+### Energy Control Room
+
+The hero screenshot at the top shows the intelligence strip, energy KPIs,
+interactive chart, device activity, and selected device inspector.
+
+### Energy Insights
+
+The lower overview area highlights savings, always-on load, load shifting, and
+recent anomaly context.
+
+![Energy insights and anomaly timeline](docs/screenshots/02-insights-planner-timeline.png)
+
+### Analytics
+
+The analytics view keeps the same visual language while exposing the load
+profile chart and latest readings table.
+
+![Analytics load profile](docs/screenshots/03-analytics-load-profile.png)
+
+Optional screenshots to add later:
+
+- Swagger API docs at `http://127.0.0.1:8000/docs`
+- Simulator page after demo data seeding
+- Anomaly triage page with acknowledge/resolve actions
+
+## Architecture
+
+```mermaid
+flowchart LR
+  User["User"] --> Frontend["Static Energy Control Room dashboard"]
+  Frontend --> API["FastAPI backend"]
+  API --> Auth["JWT auth and user sessions"]
+  API --> Homes["Homes and devices"]
+  API --> Metrics["Energy metrics API"]
+  API --> Anomalies["Anomaly workflow"]
+  API --> Analytics["Analytics summary"]
+  API --> Demo["Demo data seeding"]
+  Metrics --> DB["PostgreSQL / TimescaleDB"]
+  Anomalies --> DB
+  Analytics --> DB
+  API --> Redis["Redis"]
+  API --> MQTT["Mosquitto MQTT"]
+```
+
+## Tech Stack
+
+| Area | Technology |
+| --- | --- |
+| Backend | FastAPI, SQLAlchemy async, Pydantic |
+| Database | PostgreSQL with TimescaleDB image |
+| Messaging/cache | Mosquitto, Redis |
+| Auth | JWT access tokens, password hashing |
+| Migrations | Alembic |
+| Frontend | Static HTML, CSS, JavaScript, Canvas charts |
+| Local stack | Docker Compose |
+| Quality | Pytest, Ruff, Mypy |
+
+## Core Features
+
+### Energy Control Room
+
+- Dark premium SaaS dashboard with graphite, indigo, violet, and cyan accents.
+- KPI tiles for energy, average power, peak power, and grid quality.
+- Interactive chart modes: `Power`, `Voltage`, `Current`, and `Cost`.
+- `Today` / `Yesterday` comparison controls.
+- Hover tooltip with sample value, peak value, voltage, and timestamp.
+
+### Device Activity
+
+- Compact device cards for Fridge, Washing Machine, AC, and Always-on load.
+- Status colors for active, warning, stable, and anomaly states.
+- Mini sparklines and percentage impact rings.
+- Clickable device inspector with recommended action and priority.
+
+### Energy Insights
+
+- Projected monthly cost.
+- Always-on load estimate.
+- Saving opportunity.
+- Most expensive hour.
+- Load Shift Planner with Balanced, Eco, and Comfort modes.
+
+### Backend API
+
+- Authentication and current user profile.
+- Homes and devices management.
+- Energy metric ingestion and retrieval.
+- Home-level analytics summary.
+- Anomaly filtering, acknowledgement, and resolution.
+- Local demo data seeding through `POST /demo/seed`.
+
+## Quick Start
+
+### 1. Start the backend stack
 
 ```bash
 docker compose up --build
 ```
 
-Open the API docs:
+The backend starts on:
+
+```text
+http://127.0.0.1:8000
+```
+
+Swagger API docs:
 
 ```text
 http://127.0.0.1:8000/docs
 ```
 
-Start the static dashboard in another terminal:
+### 2. Start the dashboard
+
+In a second terminal:
 
 ```bash
 .venv/bin/python -m http.server 5173 --bind 127.0.0.1 --directory frontend
 ```
 
-Open the dashboard:
+Open:
 
 ```text
 http://127.0.0.1:5173
 ```
 
-## Seed Demo Data
+### 3. Seed demo data
 
-After the containers are running and migrations have completed, seed a demo
-account, home, smart meter, energy metrics, and one anomaly:
+Use the dashboard `Simulator` page, or run:
 
 ```bash
-docker compose exec backend python -m app.tools.seed_demo_data
+curl -X POST http://127.0.0.1:8000/demo/seed \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@voltpulse.local","password":"demo-password","sample_count":96,"interval_minutes":15}'
 ```
 
-Default demo credentials:
+Demo credentials:
 
 ```text
 email: demo@voltpulse.local
 password: demo-password
 ```
 
-You can customize the generated series:
+## API Overview
 
-```bash
-docker compose exec backend python -m app.tools.seed_demo_data \
-  --sample-count 192 \
-  --interval-minutes 15
+| Area | Purpose |
+| --- | --- |
+| `/auth` | Registration and login |
+| `/users` | Current user profile |
+| `/homes` | Home management |
+| `/homes/{home_id}/devices` | Devices per home |
+| `/homes/{home_id}/devices/{device_id}/metrics` | Energy readings |
+| `/homes/{home_id}/analytics/summary` | Aggregated energy analytics |
+| `/homes/{home_id}/anomalies` | Anomaly triage |
+| `/demo/seed` | Local demo dataset generation |
+
+## Project Structure
+
+```text
+.
+|-- backend/
+|   |-- app/
+|   |   |-- api/routes/        # FastAPI route modules
+|   |   |-- core/              # Config and security
+|   |   |-- infrastructure/    # Database setup
+|   |   |-- schemas/           # Pydantic schemas
+|   |   |-- services/          # Demo data and domain services
+|   |   `-- tools/             # Local utility commands
+|   |-- alembic/               # Database migrations
+|   `-- pyproject.toml
+|-- frontend/
+|   |-- index.html
+|   |-- styles.css
+|   `-- app.js
+|-- tests/
+|-- docker-compose.yml
+`-- README.md
 ```
 
-The dashboard also includes a `Simulator` view that calls `POST /demo/seed`
-from the browser in local environments.
-
-## Local Checks
+## Quality Checks
 
 Run tests:
 
@@ -78,28 +227,21 @@ cd backend
 ../.venv/bin/python -m mypy app
 ```
 
-## API Areas
+## Current Status
 
-- `auth`: registration and login
-- `users`: current user profile
-- `homes`: home management
-- `devices`: devices per home
-- `energy-metrics`: readings per device
-- `anomalies`: anomaly management per home
-- `analytics`: energy summary per home
-- `demo`: local demo data seeding
+VoltPulse currently includes:
 
-## Dashboard
+- working Docker Compose backend stack
+- database migrations on backend startup
+- local demo data generation
+- authenticated dashboard connection
+- interactive Energy Control Room frontend
+- API tests and frontend asset checks
 
-The static dashboard in `frontend/` connects to the local backend at
-`http://127.0.0.1:8000`.
+Good next steps:
 
-Dashboard views:
-
-- `Overview`: KPI tiles, active power chart, and operational status
-- `Homes`: home creation and portfolio table
-- `Devices`: device creation and device table
-- `Analytics`: larger load profile chart, latest readings, and CSV export
-- `Anomalies`: filtering and acknowledge/resolve actions
-- `Simulator`: browser-triggered demo data generation
-- `Settings`: runtime details and local commands
+- add real NILM disaggregation model output
+- add WebSocket or MQTT-powered live updates
+- persist user-defined planner scenarios
+- add production deployment configuration
+- add screenshot assets to this README
