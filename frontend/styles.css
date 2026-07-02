@@ -407,6 +407,14 @@ h2 {
   gap: 10px;
 }
 
+.realtime-status-pack {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .eyebrow,
 .section-kicker {
   margin: 0 0 5px;
@@ -812,6 +820,48 @@ canvas {
   border-color: rgba(85, 240, 255, 0.28);
   background: rgba(85, 240, 255, 0.1);
   color: #cffbff;
+}
+
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(166, 184, 230, 0.22);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(17, 22, 34, 0.8);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.live-status::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+  content: "";
+}
+
+.live-status.live {
+  border-color: rgba(54, 230, 181, 0.34);
+  background: rgba(54, 230, 181, 0.1);
+  color: #aaf9e4;
+}
+
+.live-status.connecting,
+.live-status.reconnecting {
+  border-color: rgba(255, 207, 90, 0.3);
+  background: rgba(255, 207, 90, 0.1);
+  color: #ffe5a3;
+}
+
+.live-status.offline {
+  border-color: rgba(166, 184, 230, 0.18);
+  background: rgba(17, 22, 34, 0.72);
+  color: #9aa8c7;
 }
 
 .device-panel {

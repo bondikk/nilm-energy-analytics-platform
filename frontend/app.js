@@ -16,6 +16,10 @@ const state = {
   period: localStorage.getItem("voltpulse_period") || "24h",
   autoRefresh: localStorage.getItem("voltpulse_auto_refresh") === "true",
   autoRefreshTimer: null,
+  metricSocket: null,
+  metricSocketReconnectTimer: null,
+  metricSocketDesired: false,
+  liveStatus: "offline",
   chartMode: localStorage.getItem("voltpulse_chart_mode") || "power",
   compareMode: localStorage.getItem("voltpulse_compare_mode") || "today",
   chartHoverIndex: null,
@@ -58,6 +62,7 @@ const elements = {
   gridQualitySparkline: document.querySelector("#grid-quality-sparkline"),
   chartSubtitle: document.querySelector("#chart-subtitle"),
   lastRefresh: document.querySelector("#last-refresh"),
+  liveStatus: document.querySelector("#live-status"),
   chartTooltip: document.querySelector("#chart-tooltip"),
   powerChart: document.querySelector("#power-chart"),
   analyticsChart: document.querySelector("#analytics-chart"),
@@ -139,6 +144,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
 });
 
 elements.signOutButton.addEventListener("click", () => {
+  disconnectMetricsSocket();
   state.token = "";
   state.user = null;
   localStorage.removeItem("voltpulse_token");
@@ -367,6 +373,7 @@ async function loadDevices() {
 async function loadSelectedData() {
   if (!state.selectedHomeId) {
     clearDataSurfaces();
+    disconnectMetricsSocket();
     return;
   }
 
@@ -398,6 +405,7 @@ async function loadSelectedData() {
   renderAnomalyTimeline();
   renderDeviceActivity();
   renderSettings();
+  connectMetricsSocket();
 }
 
 async function loadAnomalies() {
@@ -690,6 +698,13 @@ function getPeakPowerValue() {
   }
   const values = state.metrics
     .map((metric) => metric.active_power_w)
+    .filter((value) => typeof value === "number");
+  return values.length ? Math.max(...values) : 0;
+}
+
+function maxMetric(key) {
+  const values = state.metrics
+    .map((metric) => metric[key])
     .filter((value) => typeof value === "number");
   return values.length ? Math.max(...values) : 0;
 }
@@ -1392,6 +1407,7 @@ function renderSettings() {
 }
 
 function clearWorkspace() {
+  disconnectMetricsSocket();
   state.homes = [];
   state.devices = [];
   state.metrics = [];
@@ -1433,6 +1449,164 @@ function configureAutoRefresh() {
       refreshDashboard().catch(showError);
     }, 60_000);
   }
+}
+
+function connectMetricsSocket() {
+  disconnectMetricsSocket({ updateStatus: false });
+  if (!state.token || !state.selectedHomeId) {
+    renderLiveStatus("offline");
+    return;
+  }
+
+  state.metricSocketDesired = true;
+  renderLiveStatus("connecting");
+
+  const socket = new WebSocket(buildRealtimeSocketUrl());
+  state.metricSocket = socket;
+
+  socket.addEventListener("open", () => {
+    if (socket === state.metricSocket) {
+      renderLiveStatus("live");
+    }
+  });
+
+  socket.addEventListener("message", (event) => {
+    try {
+      applyRealtimeMetricEvent(JSON.parse(event.data));
+    } catch (error) {
+      console.warn("Unable to apply realtime metric event", error);
+    }
+  });
+
+  socket.addEventListener("close", () => {
+    if (socket !== state.metricSocket) {
+      return;
+    }
+    state.metricSocket = null;
+    if (state.metricSocketDesired && state.token && state.selectedHomeId) {
+      renderLiveStatus("reconnecting");
+      state.metricSocketReconnectTimer = setTimeout(connectMetricsSocket, 3000);
+      return;
+    }
+    renderLiveStatus("offline");
+  });
+
+  socket.addEventListener("error", () => {
+    if (socket === state.metricSocket) {
+      renderLiveStatus("reconnecting");
+    }
+  });
+}
+
+function disconnectMetricsSocket(options = {}) {
+  state.metricSocketDesired = false;
+  if (state.metricSocketReconnectTimer) {
+    clearTimeout(state.metricSocketReconnectTimer);
+    state.metricSocketReconnectTimer = null;
+  }
+
+  const socket = state.metricSocket;
+  state.metricSocket = null;
+  if (socket && socket.readyState < WebSocket.CLOSING) {
+    socket.close();
+  }
+
+  if (options.updateStatus !== false) {
+    renderLiveStatus("offline");
+  }
+}
+
+function buildRealtimeSocketUrl() {
+  const url = new URL(`${API_BASE_URL}/homes/${state.selectedHomeId}/metrics/live`);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("token", state.token);
+  if (state.selectedDeviceId) {
+    url.searchParams.set("device_id", state.selectedDeviceId);
+  }
+  return url.toString();
+}
+
+function applyRealtimeMetricEvent(event) {
+  if (event.event_type !== "metric.created" || event.home_id !== state.selectedHomeId) {
+    return;
+  }
+  if (state.selectedDeviceId && event.device_id !== state.selectedDeviceId) {
+    return;
+  }
+
+  const metric = {
+    device_id: event.device_id,
+    home_id: event.home_id,
+    user_id: state.user?.id || "",
+    ts: event.ts,
+    voltage_v: event.voltage_v,
+    current_a: event.current_a,
+    active_power_w: event.active_power_w,
+    reactive_power_var: event.reactive_power_var,
+    apparent_power_va: event.apparent_power_va,
+    power_factor: event.power_factor,
+    frequency_hz: event.frequency_hz,
+    energy_wh_delta: event.energy_wh_delta,
+    raw_payload: null,
+  };
+  upsertRealtimeMetric(metric);
+  recalculateRealtimeSummary();
+  renderSummary();
+  renderCharts();
+  renderReadings();
+  renderDeviceActivity();
+  elements.lastRefresh.textContent = `Live ${formatTime(metric.ts)}`;
+}
+
+function upsertRealtimeMetric(metric) {
+  const existingIndex = state.metrics.findIndex(
+    (entry) => entry.device_id === metric.device_id && entry.ts === metric.ts
+  );
+  if (existingIndex >= 0) {
+    state.metrics[existingIndex] = { ...state.metrics[existingIndex], ...metric };
+  } else {
+    state.metrics.unshift(metric);
+  }
+  state.metrics.sort((left, right) => new Date(right.ts) - new Date(left.ts));
+  state.metrics = state.metrics.slice(0, 1000);
+}
+
+function recalculateRealtimeSummary() {
+  state.summary = {
+    ...(state.summary || {}),
+    home_id: state.selectedHomeId,
+    device_id: state.selectedDeviceId || null,
+    sample_count: state.metrics.length,
+    energy_wh_delta_total: sumMetric("energy_wh_delta"),
+    active_power_w_avg: averageMetric("active_power_w"),
+    active_power_w_min: minMetric("active_power_w"),
+    active_power_w_max: maxMetric("active_power_w"),
+    current_a_avg: averageMetric("current_a"),
+    voltage_v_avg: averageMetric("voltage_v"),
+  };
+}
+
+function sumMetric(key) {
+  return state.metrics
+    .map((metric) => metric[key])
+    .filter((value) => typeof value === "number")
+    .reduce((total, value) => total + value, 0);
+}
+
+function renderLiveStatus(status) {
+  state.liveStatus = status;
+  if (!elements.liveStatus) {
+    return;
+  }
+
+  const labels = {
+    live: "Live stream",
+    connecting: "Connecting",
+    reconnecting: "Reconnecting",
+    offline: "Live offline",
+  };
+  elements.liveStatus.className = `live-status ${status}`;
+  elements.liveStatus.textContent = labels[status] || labels.offline;
 }
 
 function exportMetricsCsv() {
