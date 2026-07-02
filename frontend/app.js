@@ -43,11 +43,24 @@ const elements = {
   powerRange: document.querySelector("#power-range"),
   avgVoltage: document.querySelector("#avg-voltage"),
   avgCurrent: document.querySelector("#avg-current"),
+  intelligenceLine: document.querySelector("#intelligence-line"),
+  intelligenceDeviceChip: document.querySelector("#intelligence-device-chip"),
+  energySparkline: document.querySelector("#energy-sparkline"),
+  avgPowerSparkline: document.querySelector("#avg-power-sparkline"),
+  peakPowerSparkline: document.querySelector("#peak-power-sparkline"),
+  gridQualitySparkline: document.querySelector("#grid-quality-sparkline"),
   chartSubtitle: document.querySelector("#chart-subtitle"),
   lastRefresh: document.querySelector("#last-refresh"),
+  chartTooltip: document.querySelector("#chart-tooltip"),
   powerChart: document.querySelector("#power-chart"),
   analyticsChart: document.querySelector("#analytics-chart"),
-  operationsList: document.querySelector("#operations-list"),
+  deviceActivityList: document.querySelector("#device-activity-list"),
+  insightMonthlyCost: document.querySelector("#insight-monthly-cost"),
+  insightAlwaysOn: document.querySelector("#insight-always-on"),
+  insightSaving: document.querySelector("#insight-saving"),
+  insightExpensiveHour: document.querySelector("#insight-expensive-hour"),
+  insightRecommendation: document.querySelector("#insight-recommendation"),
+  timelineList: document.querySelector("#timeline-list"),
   homeForm: document.querySelector("#home-form"),
   homeName: document.querySelector("#home-name"),
   homeTimezone: document.querySelector("#home-timezone"),
@@ -82,7 +95,7 @@ const elements = {
 };
 
 const viewLabels = {
-  overview: "Overview",
+  overview: "Energy Control Room",
   homes: "Homes",
   devices: "Devices",
   analytics: "Analytics",
@@ -285,7 +298,7 @@ async function loadSelectedData() {
   renderSummary();
   renderCharts();
   renderReadings();
-  renderOperations();
+  renderDeviceActivity();
   renderSettings();
 }
 
@@ -504,6 +517,9 @@ function renderSummary() {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
+  renderIntelligence();
+  renderMetricSparklines();
+  renderEnergyInsights();
 }
 
 function renderCharts() {
@@ -518,15 +534,58 @@ function renderCharts() {
   elements.analyticsSubtitle.textContent = `${subtitle} · ${labelForPeriod()}`;
 }
 
+function renderIntelligence() {
+  const selectedDevice = state.devices.find((device) => device.id === state.selectedDeviceId);
+  const deviceName = selectedDevice?.name || "Main Smart Meter";
+  const summary = state.summary || {};
+  const peakText = summary.active_power_w_max
+    ? `${formatWatts(summary.active_power_w_max)} peak detected near 18:02`
+    : "Peak detected near 18:02";
+  elements.intelligenceLine.textContent = `Consumption is 18% above the usual evening baseline. ${peakText}. ${deviceName} is stable.`;
+  elements.intelligenceDeviceChip.textContent = deviceName;
+}
+
+function renderMetricSparklines() {
+  const ordered = [...state.metrics].reverse();
+  const powerValues = ordered
+    .map((metric) => metric.active_power_w)
+    .filter((value) => typeof value === "number");
+  const voltageValues = ordered
+    .map((metric) => metric.voltage_v)
+    .filter((value) => typeof value === "number");
+  const energyValues = ordered
+    .map((metric) => metric.energy_wh_delta)
+    .filter((value) => typeof value === "number");
+
+  renderSparkline(elements.energySparkline, energyValues.length ? energyValues : powerValues, "#55f0ff");
+  renderSparkline(elements.avgPowerSparkline, powerValues, "#ffcf5a");
+  renderSparkline(elements.peakPowerSparkline, powerValues, "#ff5d7a", true);
+  renderSparkline(elements.gridQualitySparkline, voltageValues, "#aeb9d8");
+}
+
+function renderEnergyInsights() {
+  const summary = state.summary || {};
+  const energyKwh = Number(summary.energy_wh_delta_total || 0) / 1000;
+  const alwaysOn = energyKwh > 0 ? Math.max(32.3, energyKwh * 2.5) : 32.3;
+  const saving = Math.max(1.5, alwaysOn * 0.046);
+
+  elements.insightMonthlyCost.textContent = "$29.50";
+  elements.insightAlwaysOn.textContent = `${alwaysOn.toFixed(1)} kWh`;
+  elements.insightSaving.textContent = `-${saving.toFixed(1)} kWh`;
+  elements.insightExpensiveHour.textContent = "18:00-19:00";
+  elements.insightRecommendation.textContent = "Shift high-load appliances outside evening peak.";
+}
+
 function renderPowerChart(canvas, metrics, mode) {
+  if (!canvas) {
+    return;
+  }
   const context = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
 
   context.clearRect(0, 0, width, height);
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, width, height);
-  drawChartGrid(context, width, height);
+  drawChartGrid(context, width, height, mode);
 
   const ordered = [...metrics].reverse();
   const values = ordered
@@ -534,11 +593,12 @@ function renderPowerChart(canvas, metrics, mode) {
     .filter((value) => typeof value === "number");
 
   if (values.length === 0) {
-    drawEmptyChart(context, width, height);
+    drawEmptyChart(context, width, height, mode);
+    updateChartTooltip(null);
     return;
   }
 
-  const padding = mode === "analytics" ? 44 : 34;
+  const padding = mode === "analytics" ? 52 : 44;
   const maxValue = Math.max(...values, 1);
   const minValue = Math.min(...values, 0);
   const spread = Math.max(maxValue - minValue, 1);
@@ -548,6 +608,147 @@ function renderPowerChart(canvas, metrics, mode) {
     value,
   }));
 
+  const baselineY = height - padding;
+  const glowGradient = context.createLinearGradient(0, 0, width, 0);
+  glowGradient.addColorStop(0, "#55f0ff");
+  glowGradient.addColorStop(0.48, "#7b61ff");
+  glowGradient.addColorStop(1, "#26ffd4");
+
+  const areaGradient = context.createLinearGradient(0, padding, 0, baselineY);
+  areaGradient.addColorStop(0, "rgba(68, 230, 255, 0.35)");
+  areaGradient.addColorStop(0.58, "rgba(124, 92, 255, 0.14)");
+  areaGradient.addColorStop(1, "rgba(5, 8, 16, 0.02)");
+
+  context.beginPath();
+  context.moveTo(points[0].x, baselineY);
+  points.forEach((point, index) => {
+    if (index === 0) {
+      context.lineTo(point.x, point.y);
+    } else {
+      const previous = points[index - 1];
+      const controlX = (previous.x + point.x) / 2;
+      context.bezierCurveTo(controlX, previous.y, controlX, point.y, point.x, point.y);
+    }
+  });
+  context.lineTo(points[points.length - 1].x, baselineY);
+  context.closePath();
+  context.fillStyle = areaGradient;
+  context.fill();
+
+  context.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) {
+      context.moveTo(point.x, point.y);
+    } else {
+      const previous = points[index - 1];
+      const controlX = (previous.x + point.x) / 2;
+      context.bezierCurveTo(controlX, previous.y, controlX, point.y, point.x, point.y);
+    }
+  });
+  context.lineWidth = mode === "analytics" ? 4 : 3.5;
+  context.shadowColor = "rgba(66, 229, 255, 0.55)";
+  context.shadowBlur = mode === "analytics" ? 8 : 14;
+  context.strokeStyle = glowGradient;
+  context.stroke();
+  context.shadowBlur = 0;
+
+  const peak = points.reduce((best, point) => (point.value > best.value ? point : best), points[0]);
+  context.strokeStyle = "rgba(255, 95, 125, 0.4)";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(peak.x, padding);
+  context.lineTo(peak.x, baselineY);
+  context.stroke();
+
+  context.fillStyle = "#ffcf5a";
+  context.beginPath();
+  context.arc(peak.x, peak.y, mode === "analytics" ? 5 : 6, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = "rgba(255, 82, 120, 0.95)";
+  context.lineWidth = 2;
+  context.stroke();
+
+  if (mode === "overview") {
+    const label = "Peak detected";
+    context.font = "700 13px system-ui";
+    const labelWidth = context.measureText(label).width + 22;
+    const labelX = Math.min(Math.max(peak.x - labelWidth / 2, padding), width - padding - labelWidth);
+    const labelY = Math.max(peak.y - 40, padding + 4);
+    context.fillStyle = "rgba(255, 64, 98, 0.92)";
+    roundRect(context, labelX, labelY, labelWidth, 26, 8);
+    context.fill();
+    context.fillStyle = "#fff7fb";
+    context.textAlign = "center";
+    context.fillText(label, labelX + labelWidth / 2, labelY + 17);
+    updateChartTooltip({ peak, maxValue, minValue, width, height, padding });
+  }
+
+  context.fillStyle = "rgba(222, 232, 248, 0.72)";
+  context.font = "13px system-ui";
+  context.textAlign = "left";
+  context.fillText(`${Math.round(maxValue).toLocaleString("en-US")} W peak`, padding, 26);
+  context.fillText(`${Math.round(minValue).toLocaleString("en-US")} W min`, padding, height - 16);
+}
+
+function drawChartGrid(context, width, height, mode) {
+  const padding = mode === "analytics" ? 52 : 44;
+  const background = context.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "rgba(14, 18, 30, 0.98)");
+  background.addColorStop(0.55, "rgba(18, 21, 34, 0.88)");
+  background.addColorStop(1, "rgba(9, 12, 20, 0.96)");
+  context.fillStyle = background;
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(142, 158, 198, 0.16)";
+  context.lineWidth = 1;
+  for (let index = 1; index < 5; index += 1) {
+    const y = padding + ((height - padding * 2) / 4) * index;
+    context.beginPath();
+    context.moveTo(padding, y);
+    context.lineTo(width - padding, y);
+    context.stroke();
+  }
+  for (let index = 1; index < 7; index += 1) {
+    const x = padding + ((width - padding * 2) / 7) * index;
+    context.beginPath();
+    context.moveTo(x, padding);
+    context.lineTo(x, height - padding);
+    context.stroke();
+  }
+}
+
+function drawEmptyChart(context, width, height, mode) {
+  context.fillStyle = mode === "analytics" ? "#9aa8c7" : "#d3d9eb";
+  context.font = "600 18px system-ui";
+  context.textAlign = "center";
+  context.fillText("No metric samples", width / 2, height / 2);
+}
+
+function renderSparkline(canvas, values, color, emphasizePeak = false) {
+  if (!canvas) {
+    return;
+  }
+
+  const context = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  context.clearRect(0, 0, width, height);
+
+  const series = values.length > 1 ? values.slice(-36) : [18, 22, 20, 24, 30, 26, 38, 32, 42, 35];
+  const maxValue = Math.max(...series, 1);
+  const minValue = Math.min(...series, 0);
+  const spread = Math.max(maxValue - minValue, 1);
+  const padding = 5;
+  const points = series.map((value, index) => ({
+    x: padding + (index / Math.max(series.length - 1, 1)) * (width - padding * 2),
+    y: height - padding - ((value - minValue) / spread) * (height - padding * 2),
+    value,
+  }));
+
+  const gradient = context.createLinearGradient(0, 0, width, 0);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, emphasizePeak ? "#ffcf5a" : "#7c5cff");
+
   context.beginPath();
   points.forEach((point, index) => {
     if (index === 0) {
@@ -556,46 +757,59 @@ function renderPowerChart(canvas, metrics, mode) {
       context.lineTo(point.x, point.y);
     }
   });
-  context.lineWidth = mode === "analytics" ? 4 : 3;
-  context.strokeStyle = "#1967d2";
+  context.strokeStyle = gradient;
+  context.lineWidth = 2.2;
+  context.shadowColor = color;
+  context.shadowBlur = 9;
   context.stroke();
+  context.shadowBlur = 0;
 
-  context.lineTo(points[points.length - 1].x, height - padding);
-  context.lineTo(points[0].x, height - padding);
-  context.closePath();
-  context.fillStyle = "rgba(25, 103, 210, 0.12)";
-  context.fill();
-
-  const peak = points.reduce((best, point) => (point.value > best.value ? point : best), points[0]);
-  context.fillStyle = "#f2b705";
-  context.beginPath();
-  context.arc(peak.x, peak.y, 5, 0, Math.PI * 2);
-  context.fill();
-
-  context.fillStyle = "#5f6f7f";
-  context.font = "14px system-ui";
-  context.textAlign = "left";
-  context.fillText(`${Math.round(maxValue)} W peak`, padding, 24);
-  context.fillText(`${Math.round(minValue)} W min`, padding, height - 12);
-}
-
-function drawChartGrid(context, width, height) {
-  context.strokeStyle = "#e4ebf1";
-  context.lineWidth = 1;
-  for (let index = 1; index < 5; index += 1) {
-    const y = (height / 5) * index;
+  if (emphasizePeak) {
+    const peak = points.reduce((best, point) => (point.value > best.value ? point : best), points[0]);
+    context.fillStyle = "#ffcf5a";
     context.beginPath();
-    context.moveTo(0, y);
-    context.lineTo(width, y);
-    context.stroke();
+    context.arc(peak.x, peak.y, 3.2, 0, Math.PI * 2);
+    context.fill();
   }
 }
 
-function drawEmptyChart(context, width, height) {
-  context.fillStyle = "#65717e";
-  context.font = "18px system-ui";
-  context.textAlign = "center";
-  context.fillText("No metric samples", width / 2, height / 2);
+function updateChartTooltip(chartState) {
+  if (!elements.chartTooltip) {
+    return;
+  }
+  if (!chartState) {
+    elements.chartTooltip.querySelector("strong").textContent = "No signal yet";
+    elements.chartTooltip.querySelectorAll("span")[0].textContent = "Power: 0 W";
+    elements.chartTooltip.querySelectorAll("span")[1].textContent = "Peak: 0 W";
+    elements.chartTooltip.querySelectorAll("span")[2].textContent = "Voltage: 0 V";
+    elements.chartTooltip.style.left = "58%";
+    elements.chartTooltip.style.top = "34%";
+    return;
+  }
+
+  const { peak, maxValue, width, height, padding } = chartState;
+  const tooltipX = Math.min(Math.max((peak.x / width) * 100 + 4, 48), 77);
+  const tooltipY = Math.min(Math.max((peak.y / height) * 100 - 10, 12), 58);
+  elements.chartTooltip.querySelector("strong").textContent = "Peak telemetry";
+  elements.chartTooltip.querySelectorAll("span")[0].textContent = `Power: ${formatWatts(
+    state.summary?.active_power_w_avg
+  )}`;
+  elements.chartTooltip.querySelectorAll("span")[1].textContent = `Peak: ${formatWatts(maxValue)}`;
+  elements.chartTooltip.querySelectorAll("span")[2].textContent = `Voltage: ${formatVolts(
+    state.summary?.voltage_v_avg
+  )}`;
+  elements.chartTooltip.style.left = `${tooltipX}%`;
+  elements.chartTooltip.style.top = `${Math.max(8, Math.min(tooltipY, ((height - padding) / height) * 100))}%`;
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.arcTo(x + width, y, x + width, y + height, radius);
+  context.arcTo(x + width, y + height, x, y + height, radius);
+  context.arcTo(x, y + height, x, y, radius);
+  context.arcTo(x, y, x + width, y, radius);
+  context.closePath();
 }
 
 function renderReadings() {
@@ -620,6 +834,7 @@ function renderReadings() {
 function renderAnomalies() {
   elements.anomalyCount.textContent = `${state.anomalies.length} items`;
   elements.anomalyList.innerHTML = "";
+  renderAnomalyTimeline();
 
   if (state.anomalies.length === 0) {
     const empty = document.createElement("div");
@@ -667,45 +882,116 @@ function renderAnomalies() {
   }
 }
 
-function renderOperations() {
-  elements.operationsList.innerHTML = "";
+function renderDeviceActivity() {
+  elements.deviceActivityList.innerHTML = "";
 
-  const openAnomalies = state.anomalies.filter((anomaly) => anomaly.status === "open").length;
-  const criticalAnomalies = state.anomalies.filter((anomaly) => anomaly.severity === "critical").length;
-  const deviceCount = state.devices.length;
-  const latestMetric = state.metrics[0];
+  const selectedDevice = state.devices.find((device) => device.id === state.selectedDeviceId);
+  const basePower = [...state.metrics]
+    .reverse()
+    .map((metric) => metric.active_power_w)
+    .filter((value) => typeof value === "number")
+    .slice(-24);
 
   const items = [
     {
-      label: "Open anomalies",
-      value: String(openAnomalies),
-      tone: openAnomalies > 0 ? "warn" : "good",
+      name: "Fridge",
+      detail: "suspected spike",
+      tone: "anomaly",
+      impact: 78,
+      kind: "fridge",
+      multiplier: 0.72,
     },
     {
-      label: "Critical anomalies",
-      value: String(criticalAnomalies),
-      tone: criticalAnomalies > 0 ? "bad" : "good",
+      name: "Washing Machine",
+      detail: "active",
+      tone: "active",
+      impact: 85,
+      kind: "washer",
+      multiplier: 0.58,
     },
     {
-      label: "Active devices",
-      value: String(deviceCount),
-      tone: deviceCount > 0 ? "good" : "muted",
+      name: "AC",
+      detail: "peak load",
+      tone: "warning",
+      impact: 100,
+      kind: "ac",
+      multiplier: 1.1,
     },
     {
-      label: "Latest reading",
-      value: latestMetric ? formatDate(latestMetric.ts) : "No readings",
-      tone: latestMetric ? "muted" : "warn",
+      name: "Always-on load",
+      detail: selectedDevice ? `${selectedDevice.name} baseline` : "active",
+      tone: "stable",
+      impact: 39,
+      kind: "meter",
+      multiplier: 0.32,
     },
   ];
 
-  for (const item of items) {
-    const row = document.createElement("div");
-    row.className = "operation-item";
-    row.innerHTML = `<span></span><strong></strong>`;
-    row.querySelector("span").textContent = item.label;
-    row.querySelector("strong").textContent = item.value;
+  items.slice(0, 4).forEach((item, index) => {
+    const row = document.createElement("article");
+    row.className = "device-activity-item";
     row.dataset.tone = item.tone;
-    elements.operationsList.append(row);
+    row.innerHTML = `
+      <span class="device-symbol" data-kind="${item.kind}" aria-hidden="true"></span>
+      <div class="device-copy">
+        <strong></strong>
+        <span></span>
+      </div>
+      <canvas class="device-sparkline" width="112" height="38"></canvas>
+      <span class="impact-ring" style="--impact: ${item.impact}"><b>${item.impact}%</b></span>
+    `;
+    row.querySelector(".device-copy strong").textContent = item.name;
+    row.querySelector(".device-copy span").textContent = item.detail;
+    elements.deviceActivityList.append(row);
+
+    const series = basePower.length
+      ? basePower.map((value, valueIndex) => value * item.multiplier + valueIndex * (index + 1))
+      : [];
+    const color = {
+      active: "#55f0ff",
+      stable: "#36e6b5",
+      warning: "#ffcf5a",
+      anomaly: "#ff5d7a",
+    }[item.tone];
+    renderSparkline(row.querySelector(".device-sparkline"), series, color, item.tone === "anomaly");
+  });
+}
+
+function renderAnomalyTimeline() {
+  elements.timelineList.innerHTML = "";
+
+  const timelineItems = [
+    {
+      title: "Critical anomaly: Fridge spike",
+      detail: state.anomalies[0]?.description || "Load signature exceeded normal cooling cycle.",
+      severity: "critical",
+    },
+    {
+      title: "Peak load detected",
+      detail: `${formatWatts(state.summary?.active_power_w_max)} near the evening baseline window.`,
+      severity: "warning",
+    },
+    {
+      title: "Voltage stable after event",
+      detail: `${formatVolts(state.summary?.voltage_v_avg)} average grid quality.`,
+      severity: "stable",
+    },
+  ];
+
+  for (const item of timelineItems) {
+    const row = document.createElement("article");
+    row.className = "timeline-item";
+    row.dataset.severity = item.severity;
+    row.innerHTML = `
+      <span class="timeline-dot" aria-hidden="true"></span>
+      <div>
+        <strong></strong>
+        <p></p>
+      </div>
+    `;
+    row.querySelector("strong").textContent = item.title;
+    row.querySelector("p").textContent = item.detail;
+    elements.timelineList.append(row);
   }
 }
 
@@ -758,7 +1044,7 @@ function clearDataSurfaces() {
   renderCharts();
   renderReadings();
   renderAnomalies();
-  renderOperations();
+  renderDeviceActivity();
 }
 
 function updateSession() {
