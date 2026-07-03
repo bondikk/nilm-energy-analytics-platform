@@ -10,37 +10,79 @@ FRONTEND_DIR = ROOT_DIR / "frontend"
 def test_frontend_entrypoint_references_assets() -> None:
     html = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
 
-    assert '<link rel="stylesheet" href="./styles.css" />' in html
-    assert '<script src="./app.js" type="module"></script>' in html
-    assert "VoltPulse Dashboard" in html
-    assert 'data-view="analytics"' in html
-    assert 'data-view="nilm-lab"' in html
-    assert 'data-view="simulator"' in html
-    assert 'id="demo-login-button"' in html
-    assert 'id="live-mqtt-form"' in html
-    assert 'id="nilm-chart"' in html
-    assert 'id="nilm-task-detail"' in html
-    assert 'id="nilm-source-detail"' in html
-    assert 'id="nilm-report-button"' in html
+    assert '<div id="root"></div>' in html
+    assert '<script type="module" src="/src/main.tsx"></script>' in html
+    assert "VoltPulse NILM Platform" in html
 
 
-def test_frontend_app_points_to_local_backend() -> None:
-    app_js = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
+def test_frontend_uses_react_typescript_vite_structure() -> None:
+    expected_files = [
+        "package.json",
+        "vite.config.ts",
+        "tsconfig.json",
+        "src/app/App.tsx",
+        "src/app/router.tsx",
+        "src/app/providers.tsx",
+        "src/pages/OverviewPage.tsx",
+        "src/pages/AnalyticsPage.tsx",
+        "src/pages/NilmLabPage.tsx",
+        "src/pages/AnomaliesPage.tsx",
+        "src/pages/SimulatorPage.tsx",
+        "src/pages/SettingsPage.tsx",
+        "src/components/layout/DashboardLayout.tsx",
+        "src/components/charts/NilmOverlayChart.tsx",
+        "src/services/apiClient.ts",
+        "src/services/websocketClient.ts",
+        "src/types/api.ts",
+    ]
 
-    assert 'const API_BASE_URL = "http://127.0.0.1:8000";' in app_js
-    assert "/auth/login" in app_js
-    assert "/analytics/summary" in app_js
-    assert "/demo/seed" in app_js
-    assert "startDemoWorkspace" in app_js
-    assert "/demo/live-metric" in app_js
-    assert "/nilm/lab/demo" in app_js
-    assert "/nilm/lab/catalog" in app_js
-    assert "/nilm/lab/report" in app_js
-    assert "exportNilmLabReport" in app_js
-    assert "new WebSocket" in app_js
-    assert "/metrics/live" in app_js
-    assert "renderNilmLab" in app_js
-    assert "exportMetricsCsv" in app_js
+    for relative_path in expected_files:
+        assert (FRONTEND_DIR / relative_path).exists()
+
+
+def test_frontend_api_client_points_to_local_backend() -> None:
+    api_client = (FRONTEND_DIR / "src/services/apiClient.ts").read_text(encoding="utf-8")
+    websocket_client = (FRONTEND_DIR / "src/services/websocketClient.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"http://127.0.0.1:8000"' in api_client
+    assert "/auth/login" in api_client
+    assert "/homes" in api_client
+    assert "/analytics/summary" in api_client
+    assert "/demo/seed" in api_client
+    assert "/demo/live-metric" in api_client
+    assert "/nilm/lab/demo" in api_client
+    assert "/nilm/lab/catalog" in api_client
+    assert "/nilm/lab/report" in api_client
+    assert "new WebSocket" in websocket_client
+    assert "/metrics/live" in websocket_client
+
+
+def test_frontend_removes_hardcoded_demo_credentials() -> None:
+    frontend_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (FRONTEND_DIR / "src").rglob("*")
+        if path.suffix in {".ts", ".tsx", ".css"}
+    )
+
+    assert "demo@voltpulse.local" not in frontend_text
+    assert "demo-password" not in frontend_text
+
+
+def test_frontend_nilm_lab_has_prediction_overlay_chart() -> None:
+    nilm_page = (FRONTEND_DIR / "src/pages/NilmLabPage.tsx").read_text(encoding="utf-8")
+    nilm_chart = (FRONTEND_DIR / "src/components/charts/NilmOverlayChart.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "apiClient.nilmCatalog" in nilm_page
+    assert "apiClient.nilmDemo" in nilm_page
+    assert "apiClient.nilmReport" in nilm_page
+    assert "NilmOverlayChart" in nilm_page
+    assert "aggregate" in nilm_chart
+    assert "actual" in nilm_chart
+    assert "predicted" in nilm_chart
 
 
 def test_backend_allows_local_frontend_origin() -> None:

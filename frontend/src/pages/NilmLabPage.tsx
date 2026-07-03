@@ -1,0 +1,249 @@
+import { Download, Microscope, Target, Waves } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { NilmOverlayChart } from "../components/charts/NilmOverlayChart";
+import { EmptyState } from "../components/ui/EmptyState";
+import { ErrorState } from "../components/ui/ErrorState";
+import { LoadingSkeleton } from "../components/ui/LoadingSkeleton";
+import { MetricCard } from "../components/ui/MetricCard";
+import { StatusPill } from "../components/ui/StatusPill";
+import { formatMetric, formatWatts } from "../features/nilm/nilmFormat";
+import { apiClient } from "../services/apiClient";
+import type { NILMLabCatalogRead, NILMLabDemoRead } from "../types/api";
+
+export function NilmLabPage() {
+  const [catalog, setCatalog] = useState<NILMLabCatalogRead | null>(null);
+  const [demo, setDemo] = useState<NILMLabDemoRead | null>(null);
+  const [dataset, setDataset] = useState("uk-dale");
+  const [houseId, setHouseId] = useState("house-1");
+  const [appliance, setAppliance] = useState("kettle");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCatalog() {
+      try {
+        const nextCatalog = await apiClient.nilmCatalog();
+        if (!cancelled) {
+          setCatalog(nextCatalog);
+          setDataset(nextCatalog.default_dataset);
+          setHouseId(nextCatalog.default_house_id);
+          setAppliance(nextCatalog.default_appliance);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : "Unable to load NILM catalog");
+          setLoading(false);
+        }
+      }
+    }
+    void loadCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDemo() {
+      setLoading(true);
+      setError("");
+      try {
+        const nextDemo = await apiClient.nilmDemo(dataset, houseId, appliance);
+        if (!cancelled) {
+          setDemo(nextDemo);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : "Unable to load NILM demo");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    if (catalog) {
+      void loadDemo();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [appliance, catalog, dataset, houseId]);
+
+  const selectedModel = catalog?.models[0];
+  const selectedAppliance = catalog?.appliances.find((item) => item.id === appliance);
+  const maxAggregate = useMemo(
+    () => Math.max(...(demo?.points.map((point) => point.aggregate_power_w) ?? [0])),
+    [demo],
+  );
+
+  async function downloadReport() {
+    setReportBusy(true);
+    try {
+      const report = await apiClient.nilmReport(dataset, houseId, appliance);
+      const blob = new Blob([report.markdown], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `nilm-${dataset}-${houseId}-${appliance}.md`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
+  if (error) {
+    return <ErrorState message={error} />;
+  }
+
+  if (!catalog || loading) {
+    return <LoadingSkeleton rows={5} />;
+  }
+
+  if (!demo) {
+    return (
+      <EmptyState
+        message="The backend did not return a NILM experiment for the selected combination."
+        title="No NILM experiment"
+      />
+    );
+  }
+
+  return (
+    <div className="page-stack">
+      <section className="nilm-header">
+        <div>
+          <span className="eyebrow">Sequence-to-point baseline surface</span>
+          <h2>Dataset-backed appliance disaggregation</h2>
+          <p>
+            Compare aggregate power, appliance ground truth, and baseline prediction from the
+            unified NILM sample.
+          </p>
+        </div>
+        <button className="button button--secondary" disabled={reportBusy} onClick={downloadReport} type="button">
+          <Download size={16} />
+          {reportBusy ? "Preparing..." : "Report"}
+        </button>
+      </section>
+
+      <section className="filter-grid">
+        <label>
+          Dataset
+          <select value={dataset} onChange={(event) => setDataset(event.target.value)}>
+            {catalog.datasets.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          House
+          <select value={houseId} onChange={(event) => setHouseId(event.target.value)}>
+            {catalog.houses.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Appliance
+          <select value={appliance} onChange={(event) => setAppliance(event.target.value)}>
+            {catalog.appliances.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      <section className="metric-grid">
+        <MetricCard
+          detail="Mean absolute error"
+          icon={<Target size={18} />}
+          label="MAE"
+          tone="green"
+          value={`${formatMetric(demo.metrics.mae_w, 3)} W`}
+        />
+        <MetricCard
+          detail="On/off classification"
+          icon={<Microscope size={18} />}
+          label="F1-score"
+          tone="blue"
+          value={formatMetric(demo.metrics.f1_score)}
+        />
+        <MetricCard
+          detail={`${formatMetric(demo.metrics.precision)} precision`}
+          label="Recall"
+          tone="amber"
+          value={formatMetric(demo.metrics.recall)}
+        />
+        <MetricCard
+          detail={`${demo.sample_count} samples from ${demo.source_file}`}
+          icon={<Waves size={18} />}
+          label="Peak aggregate"
+          value={formatWatts(maxAggregate)}
+        />
+      </section>
+
+      <section className="panel">
+        <div className="panel__heading">
+          <div>
+            <span className="eyebrow">{demo.dataset_label} · {demo.house_id}</span>
+            <h2>{demo.appliance_label} prediction overlay</h2>
+          </div>
+          <StatusPill tone="success">{demo.model_name}</StatusPill>
+        </div>
+        <NilmOverlayChart points={demo.points} />
+      </section>
+
+      <section className="model-grid">
+        <article className="panel">
+          <span className="eyebrow">Experiment source</span>
+          <dl className="definition-list">
+            <div>
+              <dt>Source file</dt>
+              <dd>{demo.source_file}</dd>
+            </div>
+            <div>
+              <dt>Sample period</dt>
+              <dd>{demo.sample_period_seconds} seconds</dd>
+            </div>
+            <div>
+              <dt>On threshold</dt>
+              <dd>{formatWatts(demo.on_threshold_w)}</dd>
+            </div>
+          </dl>
+        </article>
+        <article className="panel">
+          <span className="eyebrow">Model card</span>
+          <dl className="definition-list">
+            <div>
+              <dt>Task</dt>
+              <dd>{selectedModel?.task ?? "single-appliance disaggregation"}</dd>
+            </div>
+            <div>
+              <dt>Input</dt>
+              <dd>{selectedModel?.input_signal ?? "aggregate active power window"}</dd>
+            </div>
+            <div>
+              <dt>Output</dt>
+              <dd>{selectedModel?.output_signal ?? "appliance active power"}</dd>
+            </div>
+            <div>
+              <dt>Nominal appliance power</dt>
+              <dd>{formatWatts(selectedAppliance?.nominal_power_w ?? 0)}</dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+    </div>
+  );
+}

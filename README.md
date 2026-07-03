@@ -106,7 +106,7 @@ flowchart LR
 | Messaging/cache | Mosquitto, Redis |
 | Auth | JWT access tokens, password hashing |
 | Migrations | Alembic |
-| Frontend | Static HTML, CSS, JavaScript, Canvas charts |
+| Frontend | React, TypeScript, Vite, Recharts |
 | Streaming | MQTT consumer, Redis Streams, metrics writer worker |
 | Realtime | Redis Pub/Sub and FastAPI WebSocket |
 | NILM | Dataset conversion, step-change baselines, evaluation metrics, anomaly generation |
@@ -117,17 +117,18 @@ flowchart LR
 
 ### Energy Control Room
 
-- Dark premium SaaS dashboard with graphite, indigo, violet, and cyan accents.
-- KPI tiles for energy, average power, peak power, and grid quality.
-- Interactive chart modes: `Power`, `Voltage`, `Current`, and `Cost`.
-- `Today` / `Yesterday` comparison controls.
-- Hover tooltip with sample value, peak value, voltage, and timestamp.
-- Live WebSocket status chip with automatic reconnect.
+- React dashboard split into public landing page and authenticated app shell.
+- Typed API client for auth, homes, devices, metrics, anomalies, simulator, and NILM Lab.
+- KPI tiles, loading skeletons, empty states, error states, and command palette.
+- Recharts-based telemetry and NILM prediction overlay charts.
+- Responsive layout for desktop, tablet, and mobile.
 
-### Device Activity
+### NILM Lab
 
-- Compact device cards for Fridge, Washing Machine, AC, and Always-on load.
-- Status colors for active, warning, stable, and anomaly states.
+- Dataset, house, and appliance selectors backed by the FastAPI NILM catalog.
+- Overlay chart for aggregate power, appliance ground truth, and model prediction.
+- Metrics for MAE, F1-score, precision, recall, sample count, and source file.
+- Markdown report export for reproducible NILM experiments.
 - Mini sparklines and percentage impact rings.
 - Clickable device inspector with recommended action and priority.
 
@@ -254,7 +255,9 @@ http://127.0.0.1:8000/docs
 In a second terminal:
 
 ```bash
-.venv/bin/python -m http.server 5173 --bind 127.0.0.1 --directory frontend
+cd frontend
+npm install
+npm run dev
 ```
 
 Open:
@@ -270,15 +273,11 @@ Use the dashboard `Simulator` page, or run:
 ```bash
 curl -X POST http://127.0.0.1:8000/demo/seed \
   -H "Content-Type: application/json" \
-  -d '{"email":"demo@voltpulse.local","password":"demo-password","sample_count":96,"interval_minutes":15}'
+  -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD","sample_count":96,"interval_minutes":15}'
 ```
 
-Demo credentials:
-
-```text
-email: demo@voltpulse.local
-password: demo-password
-```
+Use your own local demo email and password. The frontend does not ship default
+demo credentials.
 
 ### 4. Send a streaming metric through MQTT
 
@@ -309,7 +308,7 @@ docker compose exec mosquitto mosquitto_pub \
 | `/nilm/lab/catalog` | NILM Lab dataset, appliance, and model metadata |
 | `/nilm/lab/demo` | Public NILM Lab dataset baseline demo |
 | `/nilm/lab/report` | Reproducible NILM experiment report |
-| `/homes/{home_id}/metrics/live` | Live metrics WebSocket |
+| `/metrics/live` | Live metrics WebSocket |
 | `/homes/{home_id}/anomalies` | Anomaly triage |
 | `/demo/seed` | Local demo dataset generation |
 | `/demo/live-metric` | Publish a selected device reading into MQTT |
@@ -376,8 +375,15 @@ PYTHONPATH=backend .venv/bin/python -m app.tools.convert_uk_dale \
 |   `-- pyproject.toml
 |-- frontend/
 |   |-- index.html
-|   |-- styles.css
-|   `-- app.js
+|   |-- package.json
+|   |-- vite.config.ts
+|   `-- src/
+|       |-- app/
+|       |-- pages/
+|       |-- components/
+|       |-- features/
+|       |-- services/
+|       `-- types/
 |-- data/
 |   |-- raw/                  # Local raw public datasets, not committed
 |   |-- processed/            # Unified NILM CSV outputs

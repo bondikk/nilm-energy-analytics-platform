@@ -62,6 +62,9 @@ yarn-error.log*
 pnpm-debug.log*
 dist/
 .vite/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # Generated data / datasets
 data/
