@@ -9,6 +9,7 @@ from app.api.routes import (
     energy_metrics,
     homes,
     nilm,
+    realtime,
     system,
     users,
 )
@@ -23,5 +24,6 @@ api_router.include_router(devices.router)
 api_router.include_router(energy_metrics.router)
 api_router.include_router(homes.router)
 api_router.include_router(nilm.router)
+api_router.include_router(realtime.router)
 api_router.include_router(system.router)
 api_router.include_router(users.router)

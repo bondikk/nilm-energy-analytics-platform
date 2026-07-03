@@ -14,6 +14,7 @@ from app.infrastructure.database.models.home import Home
 from app.infrastructure.database.session import AsyncSessionLocal
 from app.schemas.ingestion import IngestionMetricPayload
 from app.services.nilm_anomaly_detection import NILMAnomalyConfig, create_nilm_anomalies_for_metric
+from app.services.realtime_metrics import RedisMetricEventBus
 from app.services.redis_streams import RedisMetricStream, build_redis_url
 
 
@@ -44,10 +45,12 @@ class MetricsWriter:
         self,
         stream: RedisMetricStream,
         session_factory: async_sessionmaker[AsyncSession],
+        event_bus: RedisMetricEventBus | None = None,
         consumer_name: str | None = None,
     ) -> None:
         self.stream = stream
         self.session_factory = session_factory
+        self.event_bus = event_bus
         self.consumer_name = consumer_name or f"metrics-writer-{socket.gethostname()}"
 
     async def process_once(self, count: int = 100, block_ms: int = 1_000) -> MetricsWriterResult:
@@ -65,7 +68,7 @@ class MetricsWriter:
         for message in messages:
             try:
                 async with self.session_factory() as session:
-                    await write_metric_payload(session, message.payload)
+                    await write_metric_payload(session, message.payload, event_bus=self.event_bus)
                 processed += 1
                 acknowledged += await self.stream.acknowledge(message.stream_id)
             except (IngestionDeviceAmbiguousError, IngestionDeviceNotFoundError):
@@ -85,6 +88,7 @@ class MetricsWriter:
 async def write_metric_payload(
     session: AsyncSession,
     payload: IngestionMetricPayload,
+    event_bus: RedisMetricEventBus | None = None,
 ) -> EnergyMetric:
     resolved = await resolve_ingestion_device(session, payload)
     metric = build_energy_metric(payload, resolved)
@@ -102,6 +106,8 @@ async def write_metric_payload(
     )
 
     await session.commit()
+    if event_bus is not None:
+        await event_bus.publish_metric(merged)
     return merged
 
 
@@ -178,7 +184,8 @@ def build_energy_metric(
 async def main() -> None:
     redis = Redis.from_url(build_redis_url(), decode_responses=False)
     stream = RedisMetricStream(redis)
-    worker = MetricsWriter(stream=stream, session_factory=AsyncSessionLocal)
+    event_bus = RedisMetricEventBus(redis)
+    worker = MetricsWriter(stream=stream, session_factory=AsyncSessionLocal, event_bus=event_bus)
     await worker.run_forever()
 
 

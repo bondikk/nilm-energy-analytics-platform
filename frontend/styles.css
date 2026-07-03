@@ -296,6 +296,24 @@ h2 {
   transform: skewX(-22deg);
 }
 
+.nav-icon-lab::before {
+  left: 7px;
+  top: 2px;
+  width: 2px;
+  height: 10px;
+  background: currentColor;
+  box-shadow: -4px 4px 0 currentColor, 4px 4px 0 currentColor;
+}
+
+.nav-icon-lab::after {
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
 .nav-icon-anomaly::before {
   left: 7px;
   top: 3px;
@@ -405,6 +423,14 @@ h2 {
 .topbar-actions {
   display: flex;
   gap: 10px;
+}
+
+.realtime-status-pack {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .eyebrow,
@@ -617,6 +643,124 @@ h2 {
   gap: 14px;
 }
 
+.simulator-live-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.simulator-divider {
+  height: 1px;
+  background: var(--line);
+}
+
+.compact-heading {
+  margin-bottom: 4px;
+}
+
+.live-mqtt-form {
+  display: grid;
+  gap: 12px;
+}
+
+.live-mqtt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.live-result {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.nilm-lab-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.nilm-lab-controls {
+  align-content: start;
+  display: grid;
+  gap: 16px;
+}
+
+.nilm-select-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.nilm-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nilm-metrics article {
+  min-height: 96px;
+  border: 1px solid rgba(145, 162, 210, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(85, 240, 255, 0.08), transparent 58%),
+    rgba(10, 14, 23, 0.58);
+  padding: 14px;
+}
+
+.nilm-metrics span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.nilm-metrics strong {
+  display: block;
+  margin-top: 12px;
+  color: #ffffff;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.nilm-chart-panel {
+  min-height: 530px;
+}
+
+.nilm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.nilm-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.nilm-legend span::before {
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--legend-color, var(--cyan));
+  content: "";
+}
+
+.nilm-legend [data-series="aggregate"] {
+  --legend-color: var(--cyan);
+}
+
+.nilm-legend [data-series="actual"] {
+  --legend-color: var(--amber);
+}
+
+.nilm-legend [data-series="predicted"] {
+  --legend-color: var(--green);
+}
+
 .table-panel {
   min-height: 360px;
 }
@@ -701,6 +845,14 @@ canvas {
 #analytics-chart {
   width: 100%;
   height: 420px;
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+#nilm-chart {
+  width: 100%;
+  height: 430px;
   margin-top: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -812,6 +964,48 @@ canvas {
   border-color: rgba(85, 240, 255, 0.28);
   background: rgba(85, 240, 255, 0.1);
   color: #cffbff;
+}
+
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(166, 184, 230, 0.22);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(17, 22, 34, 0.8);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.live-status::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+  content: "";
+}
+
+.live-status.live {
+  border-color: rgba(54, 230, 181, 0.34);
+  background: rgba(54, 230, 181, 0.1);
+  color: #aaf9e4;
+}
+
+.live-status.connecting,
+.live-status.reconnecting {
+  border-color: rgba(255, 207, 90, 0.3);
+  background: rgba(255, 207, 90, 0.1);
+  color: #ffe5a3;
+}
+
+.live-status.offline {
+  border-color: rgba(166, 184, 230, 0.18);
+  background: rgba(17, 22, 34, 0.72);
+  color: #9aa8c7;
 }
 
 .device-panel {
@@ -1269,6 +1463,7 @@ canvas {
   .dashboard-grid,
   .bottom-grid,
   .split-grid,
+  .nilm-lab-grid,
   .settings-grid {
     grid-template-columns: 1fr;
   }
@@ -1330,7 +1525,8 @@ canvas {
   .metric-grid,
   .nav-stack,
   .device-activity-list,
-  .insight-grid {
+  .insight-grid,
+  .nilm-metrics {
     grid-template-columns: 1fr;
   }
 
@@ -1367,5 +1563,9 @@ canvas {
 
   #power-chart {
     height: 320px;
+  }
+
+  #nilm-chart {
+    height: 330px;
   }
 }

@@ -36,6 +36,10 @@
             <span class="nav-icon nav-icon-analytics" aria-hidden="true"></span>
             Analytics
           </button>
+          <button class="nav-item" type="button" data-view="nilm-lab">
+            <span class="nav-icon nav-icon-lab" aria-hidden="true"></span>
+            NILM Lab
+          </button>
           <button class="nav-item" type="button" data-view="anomalies">
             <span class="nav-icon nav-icon-anomaly" aria-hidden="true"></span>
             Anomalies
@@ -172,7 +176,10 @@
                   <h2>Active Power</h2>
                   <span id="chart-subtitle">No device selected</span>
                 </div>
-                <span id="last-refresh" class="status-chip meter">Not loaded</span>
+                <div class="realtime-status-pack">
+                  <span id="live-status" class="live-status offline">Live offline</span>
+                  <span id="last-refresh" class="status-chip meter">Not loaded</span>
+                </div>
               </div>
               <div class="chart-stage">
                 <div class="chart-blueprint" aria-hidden="true"></div>
@@ -428,6 +435,80 @@
           </section>
         </section>
 
+        <section class="view" id="view-nilm-lab" data-view-panel="nilm-lab">
+          <section class="nilm-lab-grid">
+            <section class="panel nilm-lab-controls">
+              <div class="panel-heading">
+                <div>
+                  <h2>NILM Lab</h2>
+                  <span>Dataset disaggregation workspace</span>
+                </div>
+                <span class="status-chip meter">Baseline</span>
+              </div>
+              <div class="nilm-select-grid">
+                <label>
+                  Dataset
+                  <select id="nilm-dataset-select">
+                    <option value="uk-dale">UK-DALE</option>
+                    <option value="redd">REDD</option>
+                    <option value="refit">REFIT</option>
+                  </select>
+                </label>
+                <label>
+                  House
+                  <select id="nilm-house-select">
+                    <option value="house-1">House 1</option>
+                    <option value="house-2">House 2</option>
+                    <option value="house-3">House 3</option>
+                  </select>
+                </label>
+                <label>
+                  Appliance
+                  <select id="nilm-appliance-select">
+                    <option value="kettle">Kettle</option>
+                    <option value="fridge">Fridge</option>
+                    <option value="washing_machine">Washing machine</option>
+                    <option value="dishwasher">Dishwasher</option>
+                  </select>
+                </label>
+              </div>
+              <div class="nilm-metrics" aria-label="NILM evaluation metrics">
+                <article>
+                  <span>MAE</span>
+                  <strong id="nilm-mae">0 W</strong>
+                </article>
+                <article>
+                  <span>F1-score</span>
+                  <strong id="nilm-f1">0.00</strong>
+                </article>
+                <article>
+                  <span>Precision</span>
+                  <strong id="nilm-precision">0.00</strong>
+                </article>
+                <article>
+                  <span>Recall</span>
+                  <strong id="nilm-recall">0.00</strong>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel chart-panel nilm-chart-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Disaggregation overlay</h2>
+                  <span id="nilm-chart-subtitle">UK-DALE · House 1 · Kettle</span>
+                </div>
+                <div class="nilm-legend">
+                  <span data-series="aggregate">Aggregate</span>
+                  <span data-series="actual">Real appliance</span>
+                  <span data-series="predicted">Predicted</span>
+                </div>
+              </div>
+              <canvas id="nilm-chart" width="1200" height="430"></canvas>
+            </section>
+          </section>
+        </section>
+
         <section class="view" id="view-anomalies" data-view-panel="anomalies">
           <section class="panel">
             <div class="panel-heading">
@@ -483,7 +564,7 @@
               <button type="submit">Seed demo data</button>
             </form>
 
-            <section class="panel">
+            <section class="panel simulator-live-panel">
               <div class="panel-heading">
                 <div>
                   <h2>Seed result</h2>
@@ -491,6 +572,47 @@
                 </div>
               </div>
               <dl class="result-list" id="seed-result"></dl>
+
+              <div class="simulator-divider"></div>
+
+              <form id="live-mqtt-form" class="live-mqtt-form">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <h2>Live MQTT pulse</h2>
+                    <span id="live-mqtt-subtitle">Select a device to publish readings</span>
+                  </div>
+                </div>
+                <div class="live-mqtt-grid">
+                  <label>
+                    Power W
+                    <input id="live-power" type="number" min="0" step="1" value="720" />
+                  </label>
+                  <label>
+                    Voltage V
+                    <input id="live-voltage" type="number" min="0" step="0.1" value="230" />
+                  </label>
+                  <label>
+                    Power factor
+                    <input
+                      id="live-power-factor"
+                      type="number"
+                      min="0.01"
+                      max="1"
+                      step="0.01"
+                      value="0.94"
+                    />
+                  </label>
+                  <label>
+                    Interval min
+                    <input id="live-interval" type="number" min="1" max="1440" step="1" value="15" />
+                  </label>
+                </div>
+                <div class="row-actions">
+                  <button type="submit">Send reading</button>
+                  <button id="live-spike-button" class="secondary-button" type="button">Send spike</button>
+                </div>
+              </form>
+              <dl class="result-list live-result" id="live-mqtt-result"></dl>
             </section>
           </section>
         </section>

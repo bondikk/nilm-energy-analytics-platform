@@ -16,6 +16,10 @@ const state = {
   period: localStorage.getItem("voltpulse_period") || "24h",
   autoRefresh: localStorage.getItem("voltpulse_auto_refresh") === "true",
   autoRefreshTimer: null,
+  metricSocket: null,
+  metricSocketReconnectTimer: null,
+  metricSocketDesired: false,
+  liveStatus: "offline",
   chartMode: localStorage.getItem("voltpulse_chart_mode") || "power",
   compareMode: localStorage.getItem("voltpulse_compare_mode") || "today",
   chartHoverIndex: null,
@@ -23,7 +27,29 @@ const state = {
   selectedActivityId: localStorage.getItem("voltpulse_activity_id") || "fridge",
   plannerMode: localStorage.getItem("voltpulse_planner_mode") || "balanced",
   shiftHours: Number(localStorage.getItem("voltpulse_shift_hours") || 2),
+  nilmDataset: localStorage.getItem("voltpulse_nilm_dataset") || "uk-dale",
+  nilmHouse: localStorage.getItem("voltpulse_nilm_house") || "house-1",
+  nilmAppliance: localStorage.getItem("voltpulse_nilm_appliance") || "kettle",
 };
+
+const NILM_LAB_SAMPLE = [
+  { time: "12:00", aggregate: 150, fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:08", aggregate: 152, fridge: 122, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:16", aggregate: 156, fridge: 126, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:24", aggregate: 178, fridge: 124, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:32", aggregate: 2350, fridge: 125, kettle: 2180, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 2200, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:40", aggregate: 2368, fridge: 128, kettle: 2205, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 2200, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:48", aggregate: 172, fridge: 130, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:56", aggregate: 56, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "13:04", aggregate: 64, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "13:12", aggregate: 622, fridge: 0, kettle: 0, washing_machine: 540, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 500, dishwasher: 0 } },
+  { time: "13:20", aggregate: 675, fridge: 0, kettle: 0, washing_machine: 590, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 500, dishwasher: 0 } },
+  { time: "13:28", aggregate: 132, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "13:36", aggregate: 1025, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 870, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 900 } },
+  { time: "13:44", aggregate: 1010, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 860, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 900 } },
+  { time: "13:52", aggregate: 142, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "14:00", aggregate: 263, fridge: 118, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+];
 
 const elements = {
   navItems: [...document.querySelectorAll("[data-view]")],
@@ -58,9 +84,19 @@ const elements = {
   gridQualitySparkline: document.querySelector("#grid-quality-sparkline"),
   chartSubtitle: document.querySelector("#chart-subtitle"),
   lastRefresh: document.querySelector("#last-refresh"),
+  liveStatus: document.querySelector("#live-status"),
   chartTooltip: document.querySelector("#chart-tooltip"),
   powerChart: document.querySelector("#power-chart"),
   analyticsChart: document.querySelector("#analytics-chart"),
+  nilmDatasetSelect: document.querySelector("#nilm-dataset-select"),
+  nilmHouseSelect: document.querySelector("#nilm-house-select"),
+  nilmApplianceSelect: document.querySelector("#nilm-appliance-select"),
+  nilmChart: document.querySelector("#nilm-chart"),
+  nilmChartSubtitle: document.querySelector("#nilm-chart-subtitle"),
+  nilmMae: document.querySelector("#nilm-mae"),
+  nilmF1: document.querySelector("#nilm-f1"),
+  nilmPrecision: document.querySelector("#nilm-precision"),
+  nilmRecall: document.querySelector("#nilm-recall"),
   chartModeButtons: [...document.querySelectorAll("[data-chart-mode]")],
   compareModeButtons: [...document.querySelectorAll("[data-compare-mode]")],
   deviceActivityList: document.querySelector("#device-activity-list"),
@@ -109,6 +145,14 @@ const elements = {
   seedInterval: document.querySelector("#seed-interval"),
   seedResultTitle: document.querySelector("#seed-result-title"),
   seedResult: document.querySelector("#seed-result"),
+  liveMqttForm: document.querySelector("#live-mqtt-form"),
+  liveMqttSubtitle: document.querySelector("#live-mqtt-subtitle"),
+  livePower: document.querySelector("#live-power"),
+  liveVoltage: document.querySelector("#live-voltage"),
+  livePowerFactor: document.querySelector("#live-power-factor"),
+  liveInterval: document.querySelector("#live-interval"),
+  liveSpikeButton: document.querySelector("#live-spike-button"),
+  liveMqttResult: document.querySelector("#live-mqtt-result"),
   settingsApi: document.querySelector("#settings-api"),
   settingsSession: document.querySelector("#settings-session"),
   settingsRefresh: document.querySelector("#settings-refresh"),
@@ -119,6 +163,7 @@ const viewLabels = {
   homes: "Homes",
   devices: "Devices",
   analytics: "Analytics",
+  "nilm-lab": "NILM Lab",
   anomalies: "Anomalies",
   simulator: "Simulator",
   settings: "Settings",
@@ -128,6 +173,9 @@ elements.email.value = DEFAULT_EMAIL;
 elements.password.value = DEFAULT_PASSWORD;
 elements.periodSelect.value = state.period;
 elements.autoRefreshToggle.checked = state.autoRefresh;
+elements.nilmDatasetSelect.value = state.nilmDataset;
+elements.nilmHouseSelect.value = state.nilmHouse;
+elements.nilmApplianceSelect.value = state.nilmAppliance;
 
 elements.navItems.forEach((button) => {
   button.addEventListener("click", () => setActiveView(button.dataset.view));
@@ -139,6 +187,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
 });
 
 elements.signOutButton.addEventListener("click", () => {
+  disconnectMetricsSocket();
   state.token = "";
   state.user = null;
   localStorage.removeItem("voltpulse_token");
@@ -287,11 +336,39 @@ elements.seedForm.addEventListener("submit", async (event) => {
   await seedDemoData();
 });
 
+elements.liveMqttForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await sendLiveMqttMetric("manual");
+});
+
+elements.liveSpikeButton.addEventListener("click", async () => {
+  await sendLiveMqttMetric("spike");
+});
+
+elements.nilmDatasetSelect.addEventListener("change", () => {
+  state.nilmDataset = elements.nilmDatasetSelect.value;
+  localStorage.setItem("voltpulse_nilm_dataset", state.nilmDataset);
+  renderNilmLab();
+});
+
+elements.nilmHouseSelect.addEventListener("change", () => {
+  state.nilmHouse = elements.nilmHouseSelect.value;
+  localStorage.setItem("voltpulse_nilm_house", state.nilmHouse);
+  renderNilmLab();
+});
+
+elements.nilmApplianceSelect.addEventListener("change", () => {
+  state.nilmAppliance = elements.nilmApplianceSelect.value;
+  localStorage.setItem("voltpulse_nilm_appliance", state.nilmAppliance);
+  renderNilmLab();
+});
+
 setActiveView(state.activeView);
 updateChartControls();
 updatePlannerControls();
 updateSession();
 clearWorkspace();
+renderNilmLab();
 configureAutoRefresh();
 if (state.token) {
   refreshDashboard().catch(showError);
@@ -367,6 +444,7 @@ async function loadDevices() {
 async function loadSelectedData() {
   if (!state.selectedHomeId) {
     clearDataSurfaces();
+    disconnectMetricsSocket();
     return;
   }
 
@@ -398,6 +476,7 @@ async function loadSelectedData() {
   renderAnomalyTimeline();
   renderDeviceActivity();
   renderSettings();
+  connectMetricsSocket();
 }
 
 async function loadAnomalies() {
@@ -525,6 +604,42 @@ async function seedDemoData() {
   }
 }
 
+async function sendLiveMqttMetric(scenario) {
+  if (!state.selectedHomeId || !state.selectedDeviceId) {
+    showMessage("Select a home and device before sending a live MQTT reading.");
+    return;
+  }
+
+  const activePower = scenario === "spike"
+    ? Math.max(Number(elements.livePower.value || 0) + 900, 1300)
+    : Number(elements.livePower.value || 0);
+  if (scenario === "spike") {
+    elements.livePower.value = String(activePower);
+  }
+
+  setBusy(true);
+  try {
+    const result = await fetchJson("/demo/live-metric", {
+      method: "POST",
+      body: {
+        home_id: state.selectedHomeId,
+        device_id: state.selectedDeviceId,
+        active_power_w: activePower,
+        voltage_v: Number(elements.liveVoltage.value || 230),
+        power_factor: Number(elements.livePowerFactor.value || 0.94),
+        interval_minutes: Number(elements.liveInterval.value || 15),
+        scenario,
+      },
+    });
+    renderLiveMqttResult(result);
+    showMessage(`Published ${formatWatts(result.active_power_w)} to MQTT.`);
+  } catch (error) {
+    showError(error);
+  } finally {
+    setBusy(false);
+  }
+}
+
 function setActiveView(view) {
   state.activeView = viewLabels[view] ? view : "overview";
   localStorage.setItem("voltpulse_view", state.activeView);
@@ -556,6 +671,7 @@ function renderDeviceOptions() {
   elements.deviceSelect.innerHTML = "";
   if (state.devices.length === 0) {
     appendOption(elements.deviceSelect, "", "No devices");
+    renderLiveMqttContext();
     return;
   }
 
@@ -563,6 +679,7 @@ function renderDeviceOptions() {
     appendOption(elements.deviceSelect, device.id, `${device.name} (${device.external_id})`);
   }
   elements.deviceSelect.value = state.selectedDeviceId;
+  renderLiveMqttContext();
 }
 
 function renderHomes() {
@@ -640,6 +757,139 @@ function renderCharts() {
     : `No device selected · ${labelForPeriod()}`;
 }
 
+function renderNilmLab() {
+  if (!elements.nilmChart) {
+    return;
+  }
+
+  const appliance = state.nilmAppliance;
+  const actual = NILM_LAB_SAMPLE.map((sample) => Number(sample[appliance] || 0));
+  const predicted = NILM_LAB_SAMPLE.map((sample) => Number(sample.predicted[appliance] || 0));
+  const aggregate = NILM_LAB_SAMPLE.map((sample) => Number(sample.aggregate || 0));
+  const threshold = {
+    fridge: 30,
+    kettle: 1000,
+    washing_machine: 20,
+    dishwasher: 20,
+  }[appliance] || 10;
+  const stats = calculateNilmMetrics(actual, predicted, threshold);
+
+  elements.nilmChartSubtitle.textContent = `${datasetLabel(state.nilmDataset)} · ${titleCase(
+    state.nilmHouse.replace("-", " ")
+  )} · ${titleCase(appliance.replace("_", " "))}`;
+  elements.nilmMae.textContent = formatWatts(stats.mae);
+  elements.nilmF1.textContent = stats.f1.toFixed(2);
+  elements.nilmPrecision.textContent = stats.precision.toFixed(2);
+  elements.nilmRecall.textContent = stats.recall.toFixed(2);
+
+  drawNilmChart(elements.nilmChart, { aggregate, actual, predicted });
+}
+
+function calculateNilmMetrics(actual, predicted, threshold) {
+  const mae = actual.length
+    ? actual.reduce((total, value, index) => total + Math.abs(value - predicted[index]), 0) / actual.length
+    : 0;
+  let truePositive = 0;
+  let falsePositive = 0;
+  let falseNegative = 0;
+
+  actual.forEach((value, index) => {
+    const actualOn = value >= threshold;
+    const predictedOn = predicted[index] >= threshold;
+    if (actualOn && predictedOn) {
+      truePositive += 1;
+    } else if (!actualOn && predictedOn) {
+      falsePositive += 1;
+    } else if (actualOn && !predictedOn) {
+      falseNegative += 1;
+    }
+  });
+
+  const precision = truePositive + falsePositive ? truePositive / (truePositive + falsePositive) : 0;
+  const recall = truePositive + falseNegative ? truePositive / (truePositive + falseNegative) : 0;
+  const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+  return { mae, precision, recall, f1 };
+}
+
+function drawNilmChart(canvas, series) {
+  const context = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const padding = 54;
+  const allValues = [...series.aggregate, ...series.actual, ...series.predicted];
+  const maxValue = Math.max(...allValues, 1);
+
+  context.clearRect(0, 0, width, height);
+  drawChartGrid(context, width, height, "analytics");
+
+  drawNilmSeries(context, series.aggregate, {
+    color: "#55f0ff",
+    width,
+    height,
+    padding,
+    maxValue,
+    lineWidth: 3,
+  });
+  drawNilmSeries(context, series.actual, {
+    color: "#ffcf5a",
+    width,
+    height,
+    padding,
+    maxValue,
+    lineWidth: 2.6,
+  });
+  drawNilmSeries(context, series.predicted, {
+    color: "#36e6b5",
+    width,
+    height,
+    padding,
+    maxValue,
+    lineWidth: 2.6,
+    dashed: true,
+  });
+
+  context.fillStyle = "rgba(222, 232, 248, 0.72)";
+  context.font = "13px system-ui";
+  context.textAlign = "left";
+  context.fillText(`${formatWatts(maxValue)} peak`, padding, 28);
+  context.fillText("0 W", padding, height - 18);
+}
+
+function drawNilmSeries(context, values, options) {
+  const { color, width, height, padding, maxValue, lineWidth, dashed = false } = options;
+  const points = values.map((value, index) => ({
+    x: padding + (index / Math.max(values.length - 1, 1)) * (width - padding * 2),
+    y: height - padding - (value / maxValue) * (height - padding * 2),
+  }));
+
+  context.save();
+  context.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) {
+      context.moveTo(point.x, point.y);
+    } else {
+      context.lineTo(point.x, point.y);
+    }
+  });
+  if (dashed) {
+    context.setLineDash([10, 7]);
+  }
+  context.strokeStyle = color;
+  context.lineWidth = lineWidth;
+  context.shadowColor = color;
+  context.shadowBlur = 8;
+  context.stroke();
+  context.restore();
+}
+
+function datasetLabel(dataset) {
+  return {
+    "uk-dale": "UK-DALE",
+    redd: "REDD",
+    refit: "REFIT",
+  }[dataset] || "UK-DALE";
+}
+
 function renderIntelligence() {
   const selectedDevice = state.devices.find((device) => device.id === state.selectedDeviceId);
   const deviceName = selectedDevice?.name || "Main Smart Meter";
@@ -690,6 +940,13 @@ function getPeakPowerValue() {
   }
   const values = state.metrics
     .map((metric) => metric.active_power_w)
+    .filter((value) => typeof value === "number");
+  return values.length ? Math.max(...values) : 0;
+}
+
+function maxMetric(key) {
+  const values = state.metrics
+    .map((metric) => metric[key])
     .filter((value) => typeof value === "number");
   return values.length ? Math.max(...values) : 0;
 }
@@ -1385,13 +1642,47 @@ function renderSeedResult(result) {
   }
 }
 
+function renderLiveMqttContext() {
+  const selectedDevice = state.devices.find((device) => device.id === state.selectedDeviceId);
+  const ready = Boolean(state.token && state.selectedHomeId && selectedDevice);
+  elements.liveMqttSubtitle.textContent = selectedDevice
+    ? `Publishing to ${selectedDevice.external_id} through Mosquitto`
+    : "Select a device to publish readings";
+  elements.liveMqttForm.querySelectorAll("input, button").forEach((control) => {
+    control.disabled = !ready;
+  });
+}
+
+function renderLiveMqttResult(result) {
+  elements.liveMqttResult.innerHTML = "";
+  const rows = [
+    ["Published", result.published ? "yes" : "no"],
+    ["Topic", result.topic],
+    ["Power", formatWatts(result.active_power_w)],
+    ["Current", formatAmps(result.current_a)],
+    ["Energy delta", `${formatNumber(result.energy_wh_delta)} Wh`],
+    ["Scenario", result.scenario],
+  ];
+  for (const [label, value] of rows) {
+    const wrapper = document.createElement("div");
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    term.textContent = label;
+    description.textContent = value;
+    wrapper.append(term, description);
+    elements.liveMqttResult.append(wrapper);
+  }
+}
+
 function renderSettings() {
   elements.settingsApi.textContent = API_BASE_URL;
   elements.settingsSession.textContent = state.user ? state.user.email : "Not signed in";
   elements.settingsRefresh.textContent = state.autoRefresh ? "Every 60 seconds" : "Manual";
+  renderLiveMqttContext();
 }
 
 function clearWorkspace() {
+  disconnectMetricsSocket();
   state.homes = [];
   state.devices = [];
   state.metrics = [];
@@ -1433,6 +1724,164 @@ function configureAutoRefresh() {
       refreshDashboard().catch(showError);
     }, 60_000);
   }
+}
+
+function connectMetricsSocket() {
+  disconnectMetricsSocket({ updateStatus: false });
+  if (!state.token || !state.selectedHomeId) {
+    renderLiveStatus("offline");
+    return;
+  }
+
+  state.metricSocketDesired = true;
+  renderLiveStatus("connecting");
+
+  const socket = new WebSocket(buildRealtimeSocketUrl());
+  state.metricSocket = socket;
+
+  socket.addEventListener("open", () => {
+    if (socket === state.metricSocket) {
+      renderLiveStatus("live");
+    }
+  });
+
+  socket.addEventListener("message", (event) => {
+    try {
+      applyRealtimeMetricEvent(JSON.parse(event.data));
+    } catch (error) {
+      console.warn("Unable to apply realtime metric event", error);
+    }
+  });
+
+  socket.addEventListener("close", () => {
+    if (socket !== state.metricSocket) {
+      return;
+    }
+    state.metricSocket = null;
+    if (state.metricSocketDesired && state.token && state.selectedHomeId) {
+      renderLiveStatus("reconnecting");
+      state.metricSocketReconnectTimer = setTimeout(connectMetricsSocket, 3000);
+      return;
+    }
+    renderLiveStatus("offline");
+  });
+
+  socket.addEventListener("error", () => {
+    if (socket === state.metricSocket) {
+      renderLiveStatus("reconnecting");
+    }
+  });
+}
+
+function disconnectMetricsSocket(options = {}) {
+  state.metricSocketDesired = false;
+  if (state.metricSocketReconnectTimer) {
+    clearTimeout(state.metricSocketReconnectTimer);
+    state.metricSocketReconnectTimer = null;
+  }
+
+  const socket = state.metricSocket;
+  state.metricSocket = null;
+  if (socket && socket.readyState < WebSocket.CLOSING) {
+    socket.close();
+  }
+
+  if (options.updateStatus !== false) {
+    renderLiveStatus("offline");
+  }
+}
+
+function buildRealtimeSocketUrl() {
+  const url = new URL(`${API_BASE_URL}/homes/${state.selectedHomeId}/metrics/live`);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("token", state.token);
+  if (state.selectedDeviceId) {
+    url.searchParams.set("device_id", state.selectedDeviceId);
+  }
+  return url.toString();
+}
+
+function applyRealtimeMetricEvent(event) {
+  if (event.event_type !== "metric.created" || event.home_id !== state.selectedHomeId) {
+    return;
+  }
+  if (state.selectedDeviceId && event.device_id !== state.selectedDeviceId) {
+    return;
+  }
+
+  const metric = {
+    device_id: event.device_id,
+    home_id: event.home_id,
+    user_id: state.user?.id || "",
+    ts: event.ts,
+    voltage_v: event.voltage_v,
+    current_a: event.current_a,
+    active_power_w: event.active_power_w,
+    reactive_power_var: event.reactive_power_var,
+    apparent_power_va: event.apparent_power_va,
+    power_factor: event.power_factor,
+    frequency_hz: event.frequency_hz,
+    energy_wh_delta: event.energy_wh_delta,
+    raw_payload: null,
+  };
+  upsertRealtimeMetric(metric);
+  recalculateRealtimeSummary();
+  renderSummary();
+  renderCharts();
+  renderReadings();
+  renderDeviceActivity();
+  elements.lastRefresh.textContent = `Live ${formatTime(metric.ts)}`;
+}
+
+function upsertRealtimeMetric(metric) {
+  const existingIndex = state.metrics.findIndex(
+    (entry) => entry.device_id === metric.device_id && entry.ts === metric.ts
+  );
+  if (existingIndex >= 0) {
+    state.metrics[existingIndex] = { ...state.metrics[existingIndex], ...metric };
+  } else {
+    state.metrics.unshift(metric);
+  }
+  state.metrics.sort((left, right) => new Date(right.ts) - new Date(left.ts));
+  state.metrics = state.metrics.slice(0, 1000);
+}
+
+function recalculateRealtimeSummary() {
+  state.summary = {
+    ...(state.summary || {}),
+    home_id: state.selectedHomeId,
+    device_id: state.selectedDeviceId || null,
+    sample_count: state.metrics.length,
+    energy_wh_delta_total: sumMetric("energy_wh_delta"),
+    active_power_w_avg: averageMetric("active_power_w"),
+    active_power_w_min: minMetric("active_power_w"),
+    active_power_w_max: maxMetric("active_power_w"),
+    current_a_avg: averageMetric("current_a"),
+    voltage_v_avg: averageMetric("voltage_v"),
+  };
+}
+
+function sumMetric(key) {
+  return state.metrics
+    .map((metric) => metric[key])
+    .filter((value) => typeof value === "number")
+    .reduce((total, value) => total + value, 0);
+}
+
+function renderLiveStatus(status) {
+  state.liveStatus = status;
+  if (!elements.liveStatus) {
+    return;
+  }
+
+  const labels = {
+    live: "Live stream",
+    connecting: "Connecting",
+    reconnecting: "Reconnecting",
+    offline: "Live offline",
+  };
+  elements.liveStatus.className = `live-status ${status}`;
+  elements.liveStatus.textContent = labels[status] || labels.offline;
 }
 
 function exportMetricsCsv() {
@@ -1567,9 +2016,14 @@ function setBusy(isBusy) {
     elements.homeForm.querySelector("button"),
     elements.deviceForm.querySelector("button"),
     elements.seedForm.querySelector("button"),
+    elements.liveMqttForm.querySelector("button"),
+    elements.liveSpikeButton,
   ].forEach((button) => {
     button.disabled = isBusy;
   });
+  if (!isBusy) {
+    renderLiveMqttContext();
+  }
 }
 
 function showMessage(text) {
