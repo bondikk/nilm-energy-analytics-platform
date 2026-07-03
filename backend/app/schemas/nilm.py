@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.ml.evaluation.reports import NILMEvaluationReport
 from app.services.nilm_analysis import NILMAnalysis, NILMEventType, NILMSignature
 
 
@@ -82,3 +83,38 @@ class NILMAnalysisRead(BaseModel):
                 for event in analysis.events
             ],
         )
+
+
+class NILMLabPointRead(BaseModel):
+    ts: datetime
+    aggregate_power_w: float
+    actual_power_w: float
+    predicted_power_w: float
+
+
+class NILMLabMetricsRead(BaseModel):
+    mae_w: float
+    rmse_w: float
+    precision: float
+    recall: float
+    f1_score: float
+
+    @classmethod
+    def from_report(cls, report: NILMEvaluationReport) -> "NILMLabMetricsRead":
+        return cls(
+            mae_w=report.regression.mae_w,
+            rmse_w=report.regression.rmse_w,
+            precision=report.classification.precision,
+            recall=report.classification.recall,
+            f1_score=report.classification.f1_score,
+        )
+
+
+class NILMLabDemoRead(BaseModel):
+    dataset: str
+    house_id: str
+    appliance: str
+    sample_period_seconds: int
+    model_name: str
+    metrics: NILMLabMetricsRead
+    points: list[NILMLabPointRead]

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.api.routes.nilm import get_nilm_analysis
+from app.api.routes.nilm import get_nilm_analysis, get_nilm_lab_demo
 from app.main import app
 from app.services.nilm_analysis import (
     NILMDetectionConfig,
@@ -31,6 +31,7 @@ def test_nilm_analysis_route_is_registered() -> None:
         str(app.url_path_for("get_nilm_analysis", home_id=home_id))
         == f"/homes/{home_id}/nilm/analysis"
     )
+    assert str(app.url_path_for("get_nilm_lab_demo")) == "/nilm/lab/demo"
 
 
 def test_nilm_analysis_detects_power_step_events() -> None:
@@ -95,6 +96,39 @@ async def test_nilm_analysis_rejects_inverted_time_range() -> None:
             device_id=None,
             limit=1000,
             min_step_w=80,
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_demo_returns_dataset_overlay() -> None:
+    response = await get_nilm_lab_demo(
+        dataset="uk-dale",
+        house_id="house-1",
+        appliance="kettle",
+    )
+
+    assert response.dataset == "uk-dale"
+    assert response.house_id == "house-1"
+    assert response.appliance == "kettle"
+    assert response.model_name == "threshold_step_baseline"
+    assert response.sample_period_seconds == 8
+    assert len(response.points) == 16
+    assert response.points[4].aggregate_power_w == 2350
+    assert response.points[4].actual_power_w == 2180
+    assert response.points[4].predicted_power_w == 2200
+    assert response.metrics.mae_w > 0
+    assert response.metrics.f1_score == 1
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_demo_rejects_unknown_appliance() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        await get_nilm_lab_demo(
+            dataset="uk-dale",
+            house_id="house-1",
+            appliance="toaster",
         )
 
     assert exc_info.value.status_code == 400

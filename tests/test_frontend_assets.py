@@ -28,6 +28,7 @@ def test_frontend_app_points_to_local_backend() -> None:
     assert "/analytics/summary" in app_js
     assert "/demo/seed" in app_js
     assert "/demo/live-metric" in app_js
+    assert "/nilm/lab/demo" in app_js
     assert "new WebSocket" in app_js
     assert "/metrics/live" in app_js
     assert "renderNilmLab" in app_js

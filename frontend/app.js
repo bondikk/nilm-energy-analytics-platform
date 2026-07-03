@@ -30,6 +30,7 @@ const state = {
   nilmDataset: localStorage.getItem("voltpulse_nilm_dataset") || "uk-dale",
   nilmHouse: localStorage.getItem("voltpulse_nilm_house") || "house-1",
   nilmAppliance: localStorage.getItem("voltpulse_nilm_appliance") || "kettle",
+  nilmLabData: null,
 };
 
 const NILM_LAB_SAMPLE = [
@@ -348,19 +349,19 @@ elements.liveSpikeButton.addEventListener("click", async () => {
 elements.nilmDatasetSelect.addEventListener("change", () => {
   state.nilmDataset = elements.nilmDatasetSelect.value;
   localStorage.setItem("voltpulse_nilm_dataset", state.nilmDataset);
-  renderNilmLab();
+  refreshNilmLab();
 });
 
 elements.nilmHouseSelect.addEventListener("change", () => {
   state.nilmHouse = elements.nilmHouseSelect.value;
   localStorage.setItem("voltpulse_nilm_house", state.nilmHouse);
-  renderNilmLab();
+  refreshNilmLab();
 });
 
 elements.nilmApplianceSelect.addEventListener("change", () => {
   state.nilmAppliance = elements.nilmApplianceSelect.value;
   localStorage.setItem("voltpulse_nilm_appliance", state.nilmAppliance);
-  renderNilmLab();
+  refreshNilmLab();
 });
 
 setActiveView(state.activeView);
@@ -369,6 +370,7 @@ updatePlannerControls();
 updateSession();
 clearWorkspace();
 renderNilmLab();
+loadNilmLabDemo().catch(() => renderNilmLab());
 configureAutoRefresh();
 if (state.token) {
   refreshDashboard().catch(showError);
@@ -496,6 +498,25 @@ async function loadAnomalies() {
 
   state.anomalies = await fetchJson(`/homes/${state.selectedHomeId}/anomalies?${query}`);
   renderAnomalies();
+}
+
+async function loadNilmLabDemo() {
+  const query = new URLSearchParams({
+    dataset: state.nilmDataset,
+    house_id: state.nilmHouse,
+    appliance: state.nilmAppliance,
+  });
+  state.nilmLabData = await fetchJson(`/nilm/lab/demo?${query}`, { skipAuth: true });
+  renderNilmLab();
+}
+
+function refreshNilmLab() {
+  state.nilmLabData = null;
+  renderNilmLab();
+  loadNilmLabDemo().catch((error) => {
+    console.warn("Unable to load NILM Lab demo from backend", error);
+    renderNilmLab();
+  });
 }
 
 async function createHome() {
@@ -763,6 +784,42 @@ function renderNilmLab() {
   }
 
   const appliance = state.nilmAppliance;
+  const labSeries = getNilmLabSeries(appliance);
+  const { aggregate, actual, predicted, metrics, modelName } = labSeries;
+
+  elements.nilmChartSubtitle.textContent = `${datasetLabel(state.nilmDataset)} · ${titleCase(
+    state.nilmHouse.replace("-", " ")
+  )} · ${titleCase(appliance.replace("_", " "))} · ${titleCase(modelName.replaceAll("_", " "))}`;
+  elements.nilmMae.textContent = formatWatts(metrics.mae);
+  elements.nilmF1.textContent = metrics.f1.toFixed(2);
+  elements.nilmPrecision.textContent = metrics.precision.toFixed(2);
+  elements.nilmRecall.textContent = metrics.recall.toFixed(2);
+
+  drawNilmChart(elements.nilmChart, { aggregate, actual, predicted });
+}
+
+function getNilmLabSeries(appliance) {
+  const backendData = state.nilmLabData;
+  if (
+    backendData &&
+    backendData.dataset === state.nilmDataset &&
+    backendData.house_id === state.nilmHouse &&
+    backendData.appliance === appliance
+  ) {
+    return {
+      aggregate: backendData.points.map((point) => Number(point.aggregate_power_w || 0)),
+      actual: backendData.points.map((point) => Number(point.actual_power_w || 0)),
+      predicted: backendData.points.map((point) => Number(point.predicted_power_w || 0)),
+      metrics: {
+        mae: Number(backendData.metrics.mae_w || 0),
+        precision: Number(backendData.metrics.precision || 0),
+        recall: Number(backendData.metrics.recall || 0),
+        f1: Number(backendData.metrics.f1_score || 0),
+      },
+      modelName: backendData.model_name || "threshold_step_baseline",
+    };
+  }
+
   const actual = NILM_LAB_SAMPLE.map((sample) => Number(sample[appliance] || 0));
   const predicted = NILM_LAB_SAMPLE.map((sample) => Number(sample.predicted[appliance] || 0));
   const aggregate = NILM_LAB_SAMPLE.map((sample) => Number(sample.aggregate || 0));
@@ -772,17 +829,14 @@ function renderNilmLab() {
     washing_machine: 20,
     dishwasher: 20,
   }[appliance] || 10;
-  const stats = calculateNilmMetrics(actual, predicted, threshold);
 
-  elements.nilmChartSubtitle.textContent = `${datasetLabel(state.nilmDataset)} · ${titleCase(
-    state.nilmHouse.replace("-", " ")
-  )} · ${titleCase(appliance.replace("_", " "))}`;
-  elements.nilmMae.textContent = formatWatts(stats.mae);
-  elements.nilmF1.textContent = stats.f1.toFixed(2);
-  elements.nilmPrecision.textContent = stats.precision.toFixed(2);
-  elements.nilmRecall.textContent = stats.recall.toFixed(2);
-
-  drawNilmChart(elements.nilmChart, { aggregate, actual, predicted });
+  return {
+    aggregate,
+    actual,
+    predicted,
+    metrics: calculateNilmMetrics(actual, predicted, threshold),
+    modelName: "local_fallback_baseline",
+  };
 }
 
 function calculateNilmMetrics(actual, predicted, threshold) {

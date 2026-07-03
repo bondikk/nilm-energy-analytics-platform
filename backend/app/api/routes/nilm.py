@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,11 +11,24 @@ from app.infrastructure.database.models.device import Device
 from app.infrastructure.database.models.energy_metric import EnergyMetric
 from app.infrastructure.database.models.home import Home
 from app.infrastructure.database.session import get_db_session
-from app.schemas.nilm import NILMAnalysisRead
+from app.ml.datasets.lab_demo import (
+    SUPPORTED_LAB_APPLIANCES,
+    SUPPORTED_LAB_DATASETS,
+    SUPPORTED_LAB_HOUSES,
+    build_lab_demo_rows,
+)
+from app.ml.evaluation.reports import build_evaluation_report
+from app.ml.models.baseline_threshold import (
+    predict_appliance_power_threshold,
+    prediction_series_for_appliance,
+)
+from app.ml.preprocessing.labeling import DEFAULT_ON_THRESHOLDS_W
+from app.schemas.nilm import NILMAnalysisRead, NILMLabDemoRead, NILMLabMetricsRead, NILMLabPointRead
 from app.services.nilm_analysis import NILMDetectionConfig, NILMReading, analyze_load_profile
 
 
 router = APIRouter(prefix="/homes/{home_id}/nilm", tags=["nilm"])
+lab_router = APIRouter(prefix="/nilm/lab", tags=["nilm"])
 
 
 async def validate_nilm_device_scope(
@@ -85,4 +98,57 @@ async def get_nilm_analysis(
         end=end,
         min_step_w=min_step_w,
         analysis=analysis,
+    )
+
+
+@lab_router.get("/demo", response_model=NILMLabDemoRead)
+async def get_nilm_lab_demo(
+    dataset: Annotated[str, Query()] = "uk-dale",
+    house_id: Annotated[str, Query()] = "house-1",
+    appliance: Annotated[str, Query()] = "kettle",
+) -> NILMLabDemoRead:
+    if dataset not in SUPPORTED_LAB_DATASETS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"dataset must be one of: {', '.join(SUPPORTED_LAB_DATASETS)}",
+        )
+    if house_id not in SUPPORTED_LAB_HOUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"house_id must be one of: {', '.join(SUPPORTED_LAB_HOUSES)}",
+        )
+    if appliance not in SUPPORTED_LAB_APPLIANCES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"appliance must be one of: {', '.join(SUPPORTED_LAB_APPLIANCES)}",
+        )
+
+    rows = build_lab_demo_rows()
+    predictions = predict_appliance_power_threshold(rows)
+    actual_power_w = tuple(row.appliance_power_w.get(appliance, 0.0) for row in rows)
+    predicted_power_w = prediction_series_for_appliance(predictions, appliance)
+    report = build_evaluation_report(
+        appliance=appliance,
+        actual_power_w=actual_power_w,
+        predicted_power_w=predicted_power_w,
+        on_threshold_w=DEFAULT_ON_THRESHOLDS_W.get(appliance, 10.0),
+        generated_at=datetime.now(UTC),
+    )
+
+    return NILMLabDemoRead(
+        dataset=dataset,
+        house_id=house_id,
+        appliance=appliance,
+        sample_period_seconds=8,
+        model_name="threshold_step_baseline",
+        metrics=NILMLabMetricsRead.from_report(report),
+        points=[
+            NILMLabPointRead(
+                ts=row.timestamp,
+                aggregate_power_w=row.aggregate_power_w,
+                actual_power_w=actual_power_w[index],
+                predicted_power_w=predicted_power_w[index],
+            )
+            for index, row in enumerate(rows)
+        ],
     )

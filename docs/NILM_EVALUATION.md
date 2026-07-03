@@ -60,6 +60,15 @@ The future `NILM Lab` dashboard view should show:
 - predicted appliance power
 - MAE, precision, recall, and F1-score
 
+Initial API endpoint:
+
+```text
+GET /nilm/lab/demo?dataset=uk-dale&house_id=house-1&appliance=kettle
+```
+
+This endpoint returns aggregate, real appliance, predicted appliance, and
+baseline evaluation metrics for the dashboard overlay.
+
 ## Evaluation Rules
 
 - Never evaluate on the same time range used to tune thresholds.

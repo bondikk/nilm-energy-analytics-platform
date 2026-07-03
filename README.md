@@ -302,6 +302,7 @@ docker compose exec mosquitto mosquitto_pub \
 | `/homes/{home_id}/devices/{device_id}/metrics` | Energy readings |
 | `/homes/{home_id}/analytics/summary` | Aggregated energy analytics |
 | `/homes/{home_id}/nilm/analysis` | NILM load event analysis |
+| `/nilm/lab/demo` | Public NILM Lab dataset baseline demo |
 | `/homes/{home_id}/metrics/live` | Live metrics WebSocket |
 | `/homes/{home_id}/anomalies` | Anomaly triage |
 | `/demo/seed` | Local demo dataset generation |
@@ -334,6 +335,12 @@ Pipeline modules:
 | `app.ml.preprocessing` | Builds seq2point windows, labels, and normalized inputs |
 | `app.ml.models` | Contains baseline NILM models and future model specs |
 | `app.ml.evaluation` | Computes NILM metrics and report artifacts |
+
+NILM Lab demo endpoint:
+
+```bash
+curl "http://127.0.0.1:8000/nilm/lab/demo?dataset=uk-dale&house_id=house-1&appliance=kettle"
+```
 
 ## Project Structure
 
