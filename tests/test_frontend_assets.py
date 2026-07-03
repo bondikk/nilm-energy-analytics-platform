@@ -14,8 +14,10 @@ def test_frontend_entrypoint_references_assets() -> None:
     assert '<script src="./app.js" type="module"></script>' in html
     assert "VoltPulse Dashboard" in html
     assert 'data-view="analytics"' in html
+    assert 'data-view="nilm-lab"' in html
     assert 'data-view="simulator"' in html
     assert 'id="live-mqtt-form"' in html
+    assert 'id="nilm-chart"' in html
 
 
 def test_frontend_app_points_to_local_backend() -> None:
@@ -28,6 +30,7 @@ def test_frontend_app_points_to_local_backend() -> None:
     assert "/demo/live-metric" in app_js
     assert "new WebSocket" in app_js
     assert "/metrics/live" in app_js
+    assert "renderNilmLab" in app_js
     assert "exportMetricsCsv" in app_js
 
 

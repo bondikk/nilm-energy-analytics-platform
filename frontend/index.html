@@ -36,6 +36,10 @@
             <span class="nav-icon nav-icon-analytics" aria-hidden="true"></span>
             Analytics
           </button>
+          <button class="nav-item" type="button" data-view="nilm-lab">
+            <span class="nav-icon nav-icon-lab" aria-hidden="true"></span>
+            NILM Lab
+          </button>
           <button class="nav-item" type="button" data-view="anomalies">
             <span class="nav-icon nav-icon-anomaly" aria-hidden="true"></span>
             Anomalies
@@ -428,6 +432,80 @@
                 <tbody id="readings-table"></tbody>
               </table>
             </div>
+          </section>
+        </section>
+
+        <section class="view" id="view-nilm-lab" data-view-panel="nilm-lab">
+          <section class="nilm-lab-grid">
+            <section class="panel nilm-lab-controls">
+              <div class="panel-heading">
+                <div>
+                  <h2>NILM Lab</h2>
+                  <span>Dataset disaggregation workspace</span>
+                </div>
+                <span class="status-chip meter">Baseline</span>
+              </div>
+              <div class="nilm-select-grid">
+                <label>
+                  Dataset
+                  <select id="nilm-dataset-select">
+                    <option value="uk-dale">UK-DALE</option>
+                    <option value="redd">REDD</option>
+                    <option value="refit">REFIT</option>
+                  </select>
+                </label>
+                <label>
+                  House
+                  <select id="nilm-house-select">
+                    <option value="house-1">House 1</option>
+                    <option value="house-2">House 2</option>
+                    <option value="house-3">House 3</option>
+                  </select>
+                </label>
+                <label>
+                  Appliance
+                  <select id="nilm-appliance-select">
+                    <option value="kettle">Kettle</option>
+                    <option value="fridge">Fridge</option>
+                    <option value="washing_machine">Washing machine</option>
+                    <option value="dishwasher">Dishwasher</option>
+                  </select>
+                </label>
+              </div>
+              <div class="nilm-metrics" aria-label="NILM evaluation metrics">
+                <article>
+                  <span>MAE</span>
+                  <strong id="nilm-mae">0 W</strong>
+                </article>
+                <article>
+                  <span>F1-score</span>
+                  <strong id="nilm-f1">0.00</strong>
+                </article>
+                <article>
+                  <span>Precision</span>
+                  <strong id="nilm-precision">0.00</strong>
+                </article>
+                <article>
+                  <span>Recall</span>
+                  <strong id="nilm-recall">0.00</strong>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel chart-panel nilm-chart-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Disaggregation overlay</h2>
+                  <span id="nilm-chart-subtitle">UK-DALE · House 1 · Kettle</span>
+                </div>
+                <div class="nilm-legend">
+                  <span data-series="aggregate">Aggregate</span>
+                  <span data-series="actual">Real appliance</span>
+                  <span data-series="predicted">Predicted</span>
+                </div>
+              </div>
+              <canvas id="nilm-chart" width="1200" height="430"></canvas>
+            </section>
           </section>
         </section>
 

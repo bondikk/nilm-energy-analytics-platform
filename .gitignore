@@ -65,6 +65,14 @@ dist/
 
 # Generated data / datasets
 data/
+!data/
+data/*
+!data/raw/
+!data/processed/
+!data/samples/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/samples/.gitkeep
 datasets/
 exports/
 tmp/

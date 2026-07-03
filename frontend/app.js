@@ -27,7 +27,29 @@ const state = {
   selectedActivityId: localStorage.getItem("voltpulse_activity_id") || "fridge",
   plannerMode: localStorage.getItem("voltpulse_planner_mode") || "balanced",
   shiftHours: Number(localStorage.getItem("voltpulse_shift_hours") || 2),
+  nilmDataset: localStorage.getItem("voltpulse_nilm_dataset") || "uk-dale",
+  nilmHouse: localStorage.getItem("voltpulse_nilm_house") || "house-1",
+  nilmAppliance: localStorage.getItem("voltpulse_nilm_appliance") || "kettle",
 };
+
+const NILM_LAB_SAMPLE = [
+  { time: "12:00", aggregate: 150, fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:08", aggregate: 152, fridge: 122, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:16", aggregate: 156, fridge: 126, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:24", aggregate: 178, fridge: 124, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:32", aggregate: 2350, fridge: 125, kettle: 2180, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 2200, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:40", aggregate: 2368, fridge: 128, kettle: 2205, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 2200, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:48", aggregate: 172, fridge: 130, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "12:56", aggregate: 56, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "13:04", aggregate: 64, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "13:12", aggregate: 622, fridge: 0, kettle: 0, washing_machine: 540, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 500, dishwasher: 0 } },
+  { time: "13:20", aggregate: 675, fridge: 0, kettle: 0, washing_machine: 590, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 500, dishwasher: 0 } },
+  { time: "13:28", aggregate: 132, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "13:36", aggregate: 1025, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 870, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 900 } },
+  { time: "13:44", aggregate: 1010, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 860, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 900 } },
+  { time: "13:52", aggregate: 142, fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 0, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+  { time: "14:00", aggregate: 263, fridge: 118, kettle: 0, washing_machine: 0, dishwasher: 0, predicted: { fridge: 120, kettle: 0, washing_machine: 0, dishwasher: 0 } },
+];
 
 const elements = {
   navItems: [...document.querySelectorAll("[data-view]")],
@@ -66,6 +88,15 @@ const elements = {
   chartTooltip: document.querySelector("#chart-tooltip"),
   powerChart: document.querySelector("#power-chart"),
   analyticsChart: document.querySelector("#analytics-chart"),
+  nilmDatasetSelect: document.querySelector("#nilm-dataset-select"),
+  nilmHouseSelect: document.querySelector("#nilm-house-select"),
+  nilmApplianceSelect: document.querySelector("#nilm-appliance-select"),
+  nilmChart: document.querySelector("#nilm-chart"),
+  nilmChartSubtitle: document.querySelector("#nilm-chart-subtitle"),
+  nilmMae: document.querySelector("#nilm-mae"),
+  nilmF1: document.querySelector("#nilm-f1"),
+  nilmPrecision: document.querySelector("#nilm-precision"),
+  nilmRecall: document.querySelector("#nilm-recall"),
   chartModeButtons: [...document.querySelectorAll("[data-chart-mode]")],
   compareModeButtons: [...document.querySelectorAll("[data-compare-mode]")],
   deviceActivityList: document.querySelector("#device-activity-list"),
@@ -132,6 +163,7 @@ const viewLabels = {
   homes: "Homes",
   devices: "Devices",
   analytics: "Analytics",
+  "nilm-lab": "NILM Lab",
   anomalies: "Anomalies",
   simulator: "Simulator",
   settings: "Settings",
@@ -141,6 +173,9 @@ elements.email.value = DEFAULT_EMAIL;
 elements.password.value = DEFAULT_PASSWORD;
 elements.periodSelect.value = state.period;
 elements.autoRefreshToggle.checked = state.autoRefresh;
+elements.nilmDatasetSelect.value = state.nilmDataset;
+elements.nilmHouseSelect.value = state.nilmHouse;
+elements.nilmApplianceSelect.value = state.nilmAppliance;
 
 elements.navItems.forEach((button) => {
   button.addEventListener("click", () => setActiveView(button.dataset.view));
@@ -310,11 +345,30 @@ elements.liveSpikeButton.addEventListener("click", async () => {
   await sendLiveMqttMetric("spike");
 });
 
+elements.nilmDatasetSelect.addEventListener("change", () => {
+  state.nilmDataset = elements.nilmDatasetSelect.value;
+  localStorage.setItem("voltpulse_nilm_dataset", state.nilmDataset);
+  renderNilmLab();
+});
+
+elements.nilmHouseSelect.addEventListener("change", () => {
+  state.nilmHouse = elements.nilmHouseSelect.value;
+  localStorage.setItem("voltpulse_nilm_house", state.nilmHouse);
+  renderNilmLab();
+});
+
+elements.nilmApplianceSelect.addEventListener("change", () => {
+  state.nilmAppliance = elements.nilmApplianceSelect.value;
+  localStorage.setItem("voltpulse_nilm_appliance", state.nilmAppliance);
+  renderNilmLab();
+});
+
 setActiveView(state.activeView);
 updateChartControls();
 updatePlannerControls();
 updateSession();
 clearWorkspace();
+renderNilmLab();
 configureAutoRefresh();
 if (state.token) {
   refreshDashboard().catch(showError);
@@ -701,6 +755,139 @@ function renderCharts() {
   elements.analyticsSubtitle.textContent = selectedDevice
     ? `${selectedDevice.name} · Power · ${state.metrics.length} samples · ${labelForPeriod()}`
     : `No device selected · ${labelForPeriod()}`;
+}
+
+function renderNilmLab() {
+  if (!elements.nilmChart) {
+    return;
+  }
+
+  const appliance = state.nilmAppliance;
+  const actual = NILM_LAB_SAMPLE.map((sample) => Number(sample[appliance] || 0));
+  const predicted = NILM_LAB_SAMPLE.map((sample) => Number(sample.predicted[appliance] || 0));
+  const aggregate = NILM_LAB_SAMPLE.map((sample) => Number(sample.aggregate || 0));
+  const threshold = {
+    fridge: 30,
+    kettle: 1000,
+    washing_machine: 20,
+    dishwasher: 20,
+  }[appliance] || 10;
+  const stats = calculateNilmMetrics(actual, predicted, threshold);
+
+  elements.nilmChartSubtitle.textContent = `${datasetLabel(state.nilmDataset)} · ${titleCase(
+    state.nilmHouse.replace("-", " ")
+  )} · ${titleCase(appliance.replace("_", " "))}`;
+  elements.nilmMae.textContent = formatWatts(stats.mae);
+  elements.nilmF1.textContent = stats.f1.toFixed(2);
+  elements.nilmPrecision.textContent = stats.precision.toFixed(2);
+  elements.nilmRecall.textContent = stats.recall.toFixed(2);
+
+  drawNilmChart(elements.nilmChart, { aggregate, actual, predicted });
+}
+
+function calculateNilmMetrics(actual, predicted, threshold) {
+  const mae = actual.length
+    ? actual.reduce((total, value, index) => total + Math.abs(value - predicted[index]), 0) / actual.length
+    : 0;
+  let truePositive = 0;
+  let falsePositive = 0;
+  let falseNegative = 0;
+
+  actual.forEach((value, index) => {
+    const actualOn = value >= threshold;
+    const predictedOn = predicted[index] >= threshold;
+    if (actualOn && predictedOn) {
+      truePositive += 1;
+    } else if (!actualOn && predictedOn) {
+      falsePositive += 1;
+    } else if (actualOn && !predictedOn) {
+      falseNegative += 1;
+    }
+  });
+
+  const precision = truePositive + falsePositive ? truePositive / (truePositive + falsePositive) : 0;
+  const recall = truePositive + falseNegative ? truePositive / (truePositive + falseNegative) : 0;
+  const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+  return { mae, precision, recall, f1 };
+}
+
+function drawNilmChart(canvas, series) {
+  const context = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const padding = 54;
+  const allValues = [...series.aggregate, ...series.actual, ...series.predicted];
+  const maxValue = Math.max(...allValues, 1);
+
+  context.clearRect(0, 0, width, height);
+  drawChartGrid(context, width, height, "analytics");
+
+  drawNilmSeries(context, series.aggregate, {
+    color: "#55f0ff",
+    width,
+    height,
+    padding,
+    maxValue,
+    lineWidth: 3,
+  });
+  drawNilmSeries(context, series.actual, {
+    color: "#ffcf5a",
+    width,
+    height,
+    padding,
+    maxValue,
+    lineWidth: 2.6,
+  });
+  drawNilmSeries(context, series.predicted, {
+    color: "#36e6b5",
+    width,
+    height,
+    padding,
+    maxValue,
+    lineWidth: 2.6,
+    dashed: true,
+  });
+
+  context.fillStyle = "rgba(222, 232, 248, 0.72)";
+  context.font = "13px system-ui";
+  context.textAlign = "left";
+  context.fillText(`${formatWatts(maxValue)} peak`, padding, 28);
+  context.fillText("0 W", padding, height - 18);
+}
+
+function drawNilmSeries(context, values, options) {
+  const { color, width, height, padding, maxValue, lineWidth, dashed = false } = options;
+  const points = values.map((value, index) => ({
+    x: padding + (index / Math.max(values.length - 1, 1)) * (width - padding * 2),
+    y: height - padding - (value / maxValue) * (height - padding * 2),
+  }));
+
+  context.save();
+  context.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) {
+      context.moveTo(point.x, point.y);
+    } else {
+      context.lineTo(point.x, point.y);
+    }
+  });
+  if (dashed) {
+    context.setLineDash([10, 7]);
+  }
+  context.strokeStyle = color;
+  context.lineWidth = lineWidth;
+  context.shadowColor = color;
+  context.shadowBlur = 8;
+  context.stroke();
+  context.restore();
+}
+
+function datasetLabel(dataset) {
+  return {
+    "uk-dale": "UK-DALE",
+    redd: "REDD",
+    refit: "REFIT",
+  }[dataset] || "UK-DALE";
 }
 
 function renderIntelligence() {

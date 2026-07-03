@@ -1,11 +1,12 @@
 # VoltPulse Analytics
 
-Premium energy analytics platform for home electricity monitoring, smart meter
-telemetry, anomaly detection, and NILM-style load insights.
+Premium NILM energy analytics platform for home electricity monitoring, smart
+meter telemetry, anomaly detection, and appliance-level disaggregation research.
 
 VoltPulse combines a FastAPI backend, PostgreSQL/TimescaleDB storage, Redis,
-Mosquitto, Redis Streams ingestion, demo data generation, and a polished dark
-"Energy Control Room" dashboard for exploring energy usage in a smart home.
+Mosquitto, Redis Streams ingestion, public NILM dataset tooling, demo data
+generation, and a polished dark "Energy Control Room" dashboard for exploring
+energy usage in a smart home.
 
 ![VoltPulse Energy Control Room](docs/screenshots/01-energy-control-room.png)
 
@@ -25,6 +26,8 @@ The dashboard turns raw meter readings into an operator-style view with:
 - anomaly timeline and triage workflow
 - load shift planner with savings, peak reduction, and CO2 estimates
 - MQTT to Redis Streams to TimescaleDB ingestion pipeline
+- public dataset conversion for UK-DALE, REDD, and REFIT experiments
+- baseline appliance-level disaggregation metrics
 - NILM signal analysis for detecting load step events from meter readings
 - automatic anomaly creation from fresh NILM load events
 - WebSocket live metric updates for the dashboard chart and readings table
@@ -83,6 +86,10 @@ flowchart LR
   API --> Analytics["Analytics summary"]
   API --> NILM["NILM signal analysis"]
   API --> Demo["Demo data seeding"]
+  Dataset["UK-DALE / REDD / REFIT"] --> Converter["Unified NILM dataset schema"]
+  Converter --> Models["Baseline and Seq2Point experiments"]
+  Models --> Reports["NILM evaluation reports"]
+  Reports --> API
   Metrics --> DB
   Anomalies --> DB
   Analytics --> DB
@@ -102,7 +109,7 @@ flowchart LR
 | Frontend | Static HTML, CSS, JavaScript, Canvas charts |
 | Streaming | MQTT consumer, Redis Streams, metrics writer worker |
 | Realtime | Redis Pub/Sub and FastAPI WebSocket |
-| NILM | Step-change detection, load signature classification, anomaly generation |
+| NILM | Dataset conversion, step-change baselines, evaluation metrics, anomaly generation |
 | Local stack | Docker Compose |
 | Quality | Pytest, Ruff, Mypy |
 
@@ -154,6 +161,35 @@ flowchart LR
   turn-on and turn-off edges are visible in the signal.
 - The metrics writer can turn fresh high-confidence NILM events into open
   `POWER_SPIKE` anomalies with severity, score, and event metadata.
+
+### NILM Dataset-Based Disaggregation
+
+VoltPulse includes an experimental NILM research module for appliance-level
+energy disaggregation.
+
+The module supports public NILM datasets such as UK-DALE, REDD, and REFIT. It
+converts raw dataset files into a unified internal format, builds
+sequence-to-point training windows, runs a rule-based baseline model, evaluates
+predictions against appliance-level ground truth, and prepares results for the
+FastAPI backend and dashboard.
+
+Implemented methods:
+
+- unified NILM CSV schema
+- UK-DALE low-frequency channel loader
+- REDD and REFIT loader scaffolds
+- sequence-to-point window generation
+- rule-based step-change appliance baseline
+- appliance on/off classification metrics
+- MAE and RMSE reconstruction metrics
+
+Planned:
+
+- `NILM Lab` dashboard view
+- Random Forest and logistic-regression baselines
+- Seq2Point CNN prototype
+- multi-appliance disaggregation
+- online inference from MQTT streams
 
 ### Streaming Ingestion
 
@@ -294,6 +330,10 @@ Pipeline modules:
 | `app.services.nilm_analysis` | Detects load step events and classifies likely appliance signatures |
 | `app.services.nilm_anomaly_detection` | Creates deduplicated anomalies from fresh NILM events |
 | `app.services.realtime_metrics` | Publishes and parses live metric events over Redis Pub/Sub |
+| `app.ml.datasets` | Converts public NILM datasets into the unified schema |
+| `app.ml.preprocessing` | Builds seq2point windows, labels, and normalized inputs |
+| `app.ml.models` | Contains baseline NILM models and future model specs |
+| `app.ml.evaluation` | Computes NILM metrics and report artifacts |
 
 ## Project Structure
 
@@ -304,6 +344,7 @@ Pipeline modules:
 |   |   |-- api/routes/        # FastAPI route modules
 |   |   |-- core/              # Config and security
 |   |   |-- infrastructure/    # Database setup
+|   |   |-- ml/                # Dataset-based NILM research modules
 |   |   |-- schemas/           # Pydantic schemas
 |   |   |-- services/          # Demo data and domain services
 |   |   |-- workers/           # Redis Stream background workers
@@ -314,6 +355,16 @@ Pipeline modules:
 |   |-- index.html
 |   |-- styles.css
 |   `-- app.js
+|-- data/
+|   |-- raw/                  # Local raw public datasets, not committed
+|   |-- processed/            # Unified NILM CSV outputs
+|   `-- samples/              # Small demo-ready NILM samples
+|-- docs/
+|   |-- NILM_DATASETS.md
+|   |-- NILM_METHOD.md
+|   |-- NILM_EVALUATION.md
+|   `-- ROADMAP.md
+|-- notebooks/
 |-- tests/
 |-- docker-compose.yml
 `-- README.md
@@ -351,12 +402,16 @@ VoltPulse currently includes:
 - interactive Energy Control Room frontend
 - API tests and frontend asset checks
 - NILM signal analysis endpoint over stored meter readings
+- public dataset-based NILM module foundation
+- unified NILM CSV schema and UK-DALE loader
+- baseline disaggregation prediction and evaluation helpers
 - automatic anomaly creation from streaming NILM events
 - live WebSocket metric updates for the dashboard
 - live MQTT simulator controls in the dashboard
 
 Good next steps:
 
+- add the `NILM Lab` dashboard view with prediction overlays
 - add trained NILM disaggregation model output
 - persist user-defined planner scenarios
 - add production deployment configuration
