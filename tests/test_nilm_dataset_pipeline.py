@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.ml.datasets.schema import UnifiedNILMRow, read_unified_nilm_csv, write_unified_nilm_csv
+from app.ml.datasets.lab_demo import build_lab_demo_rows
 from app.ml.datasets.uk_dale_loader import UKDaleHouseConfig, load_uk_dale_house
 from app.ml.evaluation.metrics import classification_metrics, regression_metrics
 from app.ml.evaluation.reports import build_evaluation_report
@@ -13,6 +14,7 @@ from app.ml.models.baseline_threshold import (
     prediction_series_for_appliance,
 )
 from app.ml.preprocessing.windowing import build_seq2point_windows
+from app.tools.convert_uk_dale import build_config, build_parser, parse_channel_mapping
 
 
 def build_rows() -> tuple[UnifiedNILMRow, ...]:
@@ -52,6 +54,15 @@ def test_unified_nilm_csv_roundtrip(tmp_path: Path) -> None:
     assert dataset.rows[2].appliance_power_w["kettle"] == 2_200
 
 
+def test_lab_demo_rows_are_loaded_from_unified_sample_csv() -> None:
+    rows = build_lab_demo_rows()
+
+    assert len(rows) == 16
+    assert rows[0].timestamp == datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    assert rows[4].aggregate_power_w == 2350
+    assert rows[4].appliance_power_w["kettle"] == 2180
+
+
 def test_uk_dale_loader_aligns_channels_by_timestamp(tmp_path: Path) -> None:
     house_dir = tmp_path / "house_1"
     house_dir.mkdir()
@@ -82,6 +93,27 @@ def test_uk_dale_loader_aligns_channels_by_timestamp(tmp_path: Path) -> None:
     assert dataset.rows[0].aggregate_power_w == 150
     assert dataset.rows[1].appliance_power_w["kettle"] == 2_150
     assert dataset.rows[2].appliance_power_w["fridge"] == 0
+
+
+def test_uk_dale_converter_cli_builds_channel_config() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "--raw-house-dir",
+            "data/raw/uk-dale/house_1",
+            "--output",
+            "data/processed/uk_dale_house_1.csv",
+            "--appliance-channel",
+            "kettle=10",
+            "--appliance-channel",
+            "fridge=12",
+        ]
+    )
+    config = build_config(args)
+
+    assert parse_channel_mapping("dishwasher=6") == ("dishwasher", 6)
+    assert config.house_id == 1
+    assert config.appliance_channels == {"kettle": 10, "fridge": 12}
 
 
 def test_seq2point_window_uses_center_appliance_power() -> None:

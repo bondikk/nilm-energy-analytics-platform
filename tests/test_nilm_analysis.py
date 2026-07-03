@@ -121,6 +121,8 @@ async def test_nilm_lab_demo_returns_dataset_overlay() -> None:
     assert response.house_id == "house-1"
     assert response.appliance == "kettle"
     assert response.appliance_label == "Kettle"
+    assert response.source_file == "data/samples/uk_dale_house_1_sample.csv"
+    assert response.sample_count == 16
     assert response.on_threshold_w == 1000
     assert response.model_name == "threshold_step_baseline"
     assert response.sample_period_seconds == 8
@@ -163,6 +165,8 @@ async def test_nilm_lab_report_returns_reproducible_markdown() -> None:
     assert "# NILM Experiment Report" in report.markdown
     assert "- Dataset: UK-DALE" in report.markdown
     assert "- Appliance: Kettle" in report.markdown
+    assert "- Source file: `data/samples/uk_dale_house_1_sample.csv`" in report.markdown
+    assert "- Samples: 16" in report.markdown
     assert "## Limitations" in report.markdown
 
 

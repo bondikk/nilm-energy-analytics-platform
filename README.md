@@ -173,6 +173,10 @@ sequence-to-point training windows, runs a rule-based baseline model, evaluates
 predictions against appliance-level ground truth, and prepares results for the
 FastAPI backend and dashboard.
 
+The first NILM Lab experiment is backed by a committed unified CSV sample at
+`data/samples/uk_dale_house_1_sample.csv`; the backend reads the packaged copy
+through the same unified dataset parser used by future converted datasets.
+
 Implemented methods:
 
 - unified NILM CSV schema
@@ -344,6 +348,14 @@ NILM Lab demo endpoint:
 curl "http://127.0.0.1:8000/nilm/lab/catalog"
 curl "http://127.0.0.1:8000/nilm/lab/demo?dataset=uk-dale&house_id=house-1&appliance=kettle"
 curl "http://127.0.0.1:8000/nilm/lab/report?dataset=uk-dale&house_id=house-1&appliance=kettle"
+```
+
+Convert a local UK-DALE house directory to the unified NILM CSV format:
+
+```bash
+PYTHONPATH=backend .venv/bin/python -m app.tools.convert_uk_dale \
+  --raw-house-dir data/raw/uk-dale/house_1 \
+  --output data/processed/uk_dale_house_1.csv
 ```
 
 ## Project Structure

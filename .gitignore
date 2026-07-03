@@ -73,6 +73,7 @@ data/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/samples/.gitkeep
+!data/samples/*.csv
 /datasets/
 exports/
 tmp/

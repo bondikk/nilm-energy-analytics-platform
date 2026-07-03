@@ -102,6 +102,7 @@ const elements = {
   nilmRecall: document.querySelector("#nilm-recall"),
   nilmReportButton: document.querySelector("#nilm-report-button"),
   nilmDatasetDetail: document.querySelector("#nilm-dataset-detail"),
+  nilmSourceDetail: document.querySelector("#nilm-source-detail"),
   nilmTaskDetail: document.querySelector("#nilm-task-detail"),
   nilmInputDetail: document.querySelector("#nilm-input-detail"),
   nilmOutputDetail: document.querySelector("#nilm-output-detail"),
@@ -918,6 +919,8 @@ function renderNilmLab() {
     outputSignal,
     modelStatus,
     onThresholdW,
+    sampleCount,
+    sourceFile,
     task,
   } = labSeries;
 
@@ -927,6 +930,7 @@ function renderNilmLab() {
   elements.nilmPrecision.textContent = metrics.precision.toFixed(2);
   elements.nilmRecall.textContent = metrics.recall.toFixed(2);
   elements.nilmDatasetDetail.textContent = activeDatasetLabel;
+  elements.nilmSourceDetail.textContent = `${sourceFile} · ${sampleCount} samples`;
   elements.nilmTaskDetail.textContent = task;
   elements.nilmInputDetail.textContent = inputSignal;
   elements.nilmOutputDetail.textContent = outputSignal;
@@ -961,6 +965,8 @@ function getNilmLabSeries(appliance) {
         appliance,
         modelName: backendData.model_name || "threshold_step_baseline",
         onThresholdW: Number(backendData.on_threshold_w || 0),
+        sampleCount: Number(backendData.sample_count || backendData.points.length),
+        sourceFile: backendData.source_file || "data/samples/uk_dale_house_1_sample.csv",
       }),
     };
   }
@@ -987,11 +993,21 @@ function getNilmLabSeries(appliance) {
       appliance,
       modelName: "local_fallback_baseline",
       onThresholdW: threshold,
+      sampleCount: aggregate.length,
+      sourceFile: "local fallback sample",
     }),
   };
 }
 
-function getNilmLabContext({ dataset, houseId, appliance, modelName, onThresholdW }) {
+function getNilmLabContext({
+  dataset,
+  houseId,
+  appliance,
+  modelName,
+  onThresholdW,
+  sampleCount,
+  sourceFile,
+}) {
   const catalog = state.nilmCatalog;
   const datasetOption = catalog?.datasets.find((entry) => entry.id === dataset);
   const houseOption = catalog?.houses.find((entry) => entry.id === houseId);
@@ -1006,6 +1022,8 @@ function getNilmLabContext({ dataset, houseId, appliance, modelName, onThreshold
     outputSignal: modelOption?.output_signal || "appliance active power",
     modelStatus: modelOption?.status || "baseline",
     onThresholdW: onThresholdW || applianceOption?.on_threshold_w || 10,
+    sampleCount,
+    sourceFile,
     task: modelOption?.task || "single-appliance disaggregation",
   };
 }

@@ -88,6 +88,7 @@ reproducibility logs, and future commercial model audit trails.
 Every NILM Lab report should make the experiment reproducible:
 
 - dataset and house
+- source sample file
 - appliance and on/off threshold
 - model name and task
 - input and output signals

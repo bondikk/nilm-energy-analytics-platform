@@ -116,6 +116,8 @@ class NILMLabDemoRead(BaseModel):
     house_id: str
     appliance: str
     appliance_label: str
+    source_file: str
+    sample_count: int
     on_threshold_w: float
     sample_period_seconds: int
     model_name: str
@@ -165,5 +167,6 @@ class NILMLabReportRead(BaseModel):
     house_id: str
     appliance: str
     model_name: str
+    source_file: str
     generated_at: datetime
     markdown: str

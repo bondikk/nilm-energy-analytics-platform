@@ -18,6 +18,11 @@ The canonical Python representation is `app.ml.datasets.schema.UnifiedNILMRow`.
 Processed files belong in `data/processed/`; raw downloaded datasets stay in
 `data/raw/` and should not be committed.
 
+Small, reviewable demo samples may be committed under `data/samples/`. The first
+sample is `data/samples/uk_dale_house_1_sample.csv`, mirrored inside the backend
+package so the Dockerized API can serve NILM Lab without mounting the repository
+root.
+
 ## Dataset Priority
 
 ### 1. UK-DALE
@@ -35,6 +40,14 @@ Initial loader:
 - `backend/app/ml/datasets/uk_dale_loader.py`
 - expects low-frequency channel files such as `mains.dat` and `channel_10.dat`
 - aligns appliance channels by timestamp
+
+Conversion command:
+
+```bash
+PYTHONPATH=backend .venv/bin/python -m app.tools.convert_uk_dale \
+  --raw-house-dir data/raw/uk-dale/house_1 \
+  --output data/processed/uk_dale_house_1.csv
+```
 
 Reference: <https://arxiv.org/abs/1404.0284>
 

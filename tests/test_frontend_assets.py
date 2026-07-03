@@ -20,6 +20,7 @@ def test_frontend_entrypoint_references_assets() -> None:
     assert 'id="live-mqtt-form"' in html
     assert 'id="nilm-chart"' in html
     assert 'id="nilm-task-detail"' in html
+    assert 'id="nilm-source-detail"' in html
     assert 'id="nilm-report-button"' in html
 
 
