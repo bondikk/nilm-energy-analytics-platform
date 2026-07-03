@@ -12,6 +12,10 @@ from app.infrastructure.database.models.energy_metric import EnergyMetric
 from app.infrastructure.database.models.home import Home
 from app.infrastructure.database.session import get_db_session
 from app.ml.datasets.lab_demo import (
+    LAB_APPLIANCE_LABELS,
+    LAB_APPLIANCE_NOMINAL_POWER_W,
+    LAB_DATASET_DESCRIPTIONS,
+    LAB_DATASET_LABELS,
     SUPPORTED_LAB_APPLIANCES,
     SUPPORTED_LAB_DATASETS,
     SUPPORTED_LAB_HOUSES,
@@ -23,7 +27,17 @@ from app.ml.models.baseline_threshold import (
     prediction_series_for_appliance,
 )
 from app.ml.preprocessing.labeling import DEFAULT_ON_THRESHOLDS_W
-from app.schemas.nilm import NILMAnalysisRead, NILMLabDemoRead, NILMLabMetricsRead, NILMLabPointRead
+from app.schemas.nilm import (
+    NILMAnalysisRead,
+    NILMLabApplianceRead,
+    NILMLabCatalogRead,
+    NILMLabDatasetRead,
+    NILMLabDemoRead,
+    NILMLabHouseRead,
+    NILMLabMetricsRead,
+    NILMLabModelRead,
+    NILMLabPointRead,
+)
 from app.services.nilm_analysis import NILMDetectionConfig, NILMReading, analyze_load_profile
 
 
@@ -137,8 +151,11 @@ async def get_nilm_lab_demo(
 
     return NILMLabDemoRead(
         dataset=dataset,
+        dataset_label=LAB_DATASET_LABELS[dataset],
         house_id=house_id,
         appliance=appliance,
+        appliance_label=LAB_APPLIANCE_LABELS[appliance],
+        on_threshold_w=DEFAULT_ON_THRESHOLDS_W.get(appliance, 10.0),
         sample_period_seconds=8,
         model_name="threshold_step_baseline",
         metrics=NILMLabMetricsRead.from_report(report),
@@ -150,5 +167,48 @@ async def get_nilm_lab_demo(
                 predicted_power_w=predicted_power_w[index],
             )
             for index, row in enumerate(rows)
+        ],
+    )
+
+
+@lab_router.get("/catalog", response_model=NILMLabCatalogRead)
+async def get_nilm_lab_catalog() -> NILMLabCatalogRead:
+    return NILMLabCatalogRead(
+        default_dataset="uk-dale",
+        default_house_id="house-1",
+        default_appliance="kettle",
+        datasets=[
+            NILMLabDatasetRead(
+                id=dataset,
+                label=LAB_DATASET_LABELS[dataset],
+                description=LAB_DATASET_DESCRIPTIONS[dataset],
+            )
+            for dataset in SUPPORTED_LAB_DATASETS
+        ],
+        houses=[
+            NILMLabHouseRead(
+                id=house_id,
+                label=house_id.replace("-", " ").title(),
+            )
+            for house_id in SUPPORTED_LAB_HOUSES
+        ],
+        appliances=[
+            NILMLabApplianceRead(
+                id=appliance,
+                label=LAB_APPLIANCE_LABELS[appliance],
+                on_threshold_w=DEFAULT_ON_THRESHOLDS_W.get(appliance, 10.0),
+                nominal_power_w=LAB_APPLIANCE_NOMINAL_POWER_W[appliance],
+            )
+            for appliance in SUPPORTED_LAB_APPLIANCES
+        ],
+        models=[
+            NILMLabModelRead(
+                id="threshold_step_baseline",
+                label="Threshold step baseline",
+                task="single-appliance disaggregation",
+                input_signal="aggregate active power window",
+                output_signal="appliance active power",
+                status="baseline",
+            )
         ],
     )

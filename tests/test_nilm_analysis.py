@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.api.routes.nilm import get_nilm_analysis, get_nilm_lab_demo
+from app.api.routes.nilm import get_nilm_analysis, get_nilm_lab_catalog, get_nilm_lab_demo
 from app.main import app
 from app.services.nilm_analysis import (
     NILMDetectionConfig,
@@ -32,6 +32,7 @@ def test_nilm_analysis_route_is_registered() -> None:
         == f"/homes/{home_id}/nilm/analysis"
     )
     assert str(app.url_path_for("get_nilm_lab_demo")) == "/nilm/lab/demo"
+    assert str(app.url_path_for("get_nilm_lab_catalog")) == "/nilm/lab/catalog"
 
 
 def test_nilm_analysis_detects_power_step_events() -> None:
@@ -110,8 +111,11 @@ async def test_nilm_lab_demo_returns_dataset_overlay() -> None:
     )
 
     assert response.dataset == "uk-dale"
+    assert response.dataset_label == "UK-DALE"
     assert response.house_id == "house-1"
     assert response.appliance == "kettle"
+    assert response.appliance_label == "Kettle"
+    assert response.on_threshold_w == 1000
     assert response.model_name == "threshold_step_baseline"
     assert response.sample_period_seconds == 8
     assert len(response.points) == 16
@@ -120,6 +124,22 @@ async def test_nilm_lab_demo_returns_dataset_overlay() -> None:
     assert response.points[4].predicted_power_w == 2200
     assert response.metrics.mae_w > 0
     assert response.metrics.f1_score == 1
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_catalog_describes_available_experiments() -> None:
+    catalog = await get_nilm_lab_catalog()
+
+    assert catalog.default_dataset == "uk-dale"
+    assert catalog.default_house_id == "house-1"
+    assert catalog.default_appliance == "kettle"
+    assert [dataset.id for dataset in catalog.datasets] == ["uk-dale", "redd", "refit"]
+    assert catalog.datasets[0].label == "UK-DALE"
+    assert catalog.appliances[0].id == "kettle"
+    assert catalog.appliances[0].on_threshold_w == 1000
+    assert catalog.appliances[0].nominal_power_w == 2200
+    assert catalog.models[0].id == "threshold_step_baseline"
+    assert catalog.models[0].task == "single-appliance disaggregation"
 
 
 @pytest.mark.asyncio

@@ -57,6 +57,7 @@ const elements = {
   views: [...document.querySelectorAll("[data-view-panel]")],
   viewTitle: document.querySelector("#view-title"),
   loginForm: document.querySelector("#login-form"),
+  demoLoginButton: document.querySelector("#demo-login-button"),
   email: document.querySelector("#email"),
   password: document.querySelector("#password"),
   sessionLabel: document.querySelector("#session-label"),
@@ -185,6 +186,10 @@ elements.navItems.forEach((button) => {
 elements.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await signIn(elements.email.value, elements.password.value);
+});
+
+elements.demoLoginButton.addEventListener("click", async () => {
+  await startDemoWorkspace();
 });
 
 elements.signOutButton.addEventListener("click", () => {
@@ -388,6 +393,32 @@ async function signIn(email, password) {
     localStorage.setItem("voltpulse_token", state.token);
     await refreshDashboard();
     hideMessage();
+  } catch (error) {
+    showError(error);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function startDemoWorkspace() {
+  setBusy(true);
+  try {
+    const result = await fetchJson("/demo/seed", {
+      method: "POST",
+      skipAuth: true,
+      body: {
+        email: DEFAULT_EMAIL,
+        password: DEFAULT_PASSWORD,
+        sample_count: 96,
+        interval_minutes: 15,
+      },
+    });
+    elements.email.value = result.email;
+    elements.password.value = result.password;
+    state.token = "";
+    localStorage.removeItem("voltpulse_token");
+    await signIn(result.email, result.password);
+    showMessage(`Loaded demo workspace with ${result.metric_count} readings.`);
   } catch (error) {
     showError(error);
   } finally {
@@ -1974,11 +2005,18 @@ async function fetchJson(path, options = {}) {
     headers.Authorization = `Bearer ${state.token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method || "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (error) {
+    throw new Error(`API is offline at ${API_BASE_URL}. Start Docker Compose and retry.`, {
+      cause: error,
+    });
+  }
 
   if (!response.ok) {
     let detail = response.statusText;
@@ -2067,6 +2105,7 @@ function setBusy(isBusy) {
     elements.refreshButton,
     elements.exportButton,
     elements.loginForm.querySelector("button"),
+    elements.demoLoginButton,
     elements.homeForm.querySelector("button"),
     elements.deviceForm.querySelector("button"),
     elements.seedForm.querySelector("button"),

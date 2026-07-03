@@ -9,6 +9,32 @@ SUPPORTED_LAB_DATASETS = ("uk-dale", "redd", "refit")
 SUPPORTED_LAB_HOUSES = ("house-1", "house-2", "house-3")
 SUPPORTED_LAB_APPLIANCES = ("kettle", "fridge", "washing_machine", "dishwasher")
 
+LAB_DATASET_LABELS = {
+    "uk-dale": "UK-DALE",
+    "redd": "REDD",
+    "refit": "REFIT",
+}
+
+LAB_DATASET_DESCRIPTIONS = {
+    "uk-dale": "Public dataset with aggregate and appliance-level demand for UK homes.",
+    "redd": "Classic NILM benchmark dataset for low-frequency disaggregation experiments.",
+    "refit": "Low-frequency residential dataset close to smart-meter SaaS scenarios.",
+}
+
+LAB_APPLIANCE_LABELS = {
+    "kettle": "Kettle",
+    "fridge": "Fridge",
+    "washing_machine": "Washing machine",
+    "dishwasher": "Dishwasher",
+}
+
+LAB_APPLIANCE_NOMINAL_POWER_W = {
+    "kettle": 2200.0,
+    "fridge": 120.0,
+    "washing_machine": 500.0,
+    "dishwasher": 900.0,
+}
+
 
 def build_lab_demo_rows() -> tuple[UnifiedNILMRow, ...]:
     start = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)

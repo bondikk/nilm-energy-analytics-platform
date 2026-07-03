@@ -16,6 +16,7 @@ def test_frontend_entrypoint_references_assets() -> None:
     assert 'data-view="analytics"' in html
     assert 'data-view="nilm-lab"' in html
     assert 'data-view="simulator"' in html
+    assert 'id="demo-login-button"' in html
     assert 'id="live-mqtt-form"' in html
     assert 'id="nilm-chart"' in html
 
@@ -27,6 +28,7 @@ def test_frontend_app_points_to_local_backend() -> None:
     assert "/auth/login" in app_js
     assert "/analytics/summary" in app_js
     assert "/demo/seed" in app_js
+    assert "startDemoWorkspace" in app_js
     assert "/demo/live-metric" in app_js
     assert "/nilm/lab/demo" in app_js
     assert "new WebSocket" in app_js
@@ -38,3 +40,5 @@ def test_frontend_app_points_to_local_backend() -> None:
 def test_backend_allows_local_frontend_origin() -> None:
     assert "http://127.0.0.1:5173" in settings.frontend_origins
     assert "http://localhost:5173" in settings.frontend_origins
+    assert "http://127.0.0.1:5174" in settings.frontend_origins
+    assert "http://localhost:5174" in settings.frontend_origins

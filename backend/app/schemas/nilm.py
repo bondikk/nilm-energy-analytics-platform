@@ -112,9 +112,49 @@ class NILMLabMetricsRead(BaseModel):
 
 class NILMLabDemoRead(BaseModel):
     dataset: str
+    dataset_label: str
     house_id: str
     appliance: str
+    appliance_label: str
+    on_threshold_w: float
     sample_period_seconds: int
     model_name: str
     metrics: NILMLabMetricsRead
     points: list[NILMLabPointRead]
+
+
+class NILMLabDatasetRead(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
+class NILMLabHouseRead(BaseModel):
+    id: str
+    label: str
+
+
+class NILMLabApplianceRead(BaseModel):
+    id: str
+    label: str
+    on_threshold_w: float
+    nominal_power_w: float
+
+
+class NILMLabModelRead(BaseModel):
+    id: str
+    label: str
+    task: str
+    input_signal: str
+    output_signal: str
+    status: str
+
+
+class NILMLabCatalogRead(BaseModel):
+    default_dataset: str
+    default_house_id: str
+    default_appliance: str
+    datasets: list[NILMLabDatasetRead]
+    houses: list[NILMLabHouseRead]
+    appliances: list[NILMLabApplianceRead]
+    models: list[NILMLabModelRead]
