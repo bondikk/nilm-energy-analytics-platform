@@ -30,6 +30,7 @@ const state = {
   nilmDataset: localStorage.getItem("voltpulse_nilm_dataset") || "uk-dale",
   nilmHouse: localStorage.getItem("voltpulse_nilm_house") || "house-1",
   nilmAppliance: localStorage.getItem("voltpulse_nilm_appliance") || "kettle",
+  nilmCatalog: null,
   nilmLabData: null,
 };
 
@@ -99,6 +100,12 @@ const elements = {
   nilmF1: document.querySelector("#nilm-f1"),
   nilmPrecision: document.querySelector("#nilm-precision"),
   nilmRecall: document.querySelector("#nilm-recall"),
+  nilmDatasetDetail: document.querySelector("#nilm-dataset-detail"),
+  nilmTaskDetail: document.querySelector("#nilm-task-detail"),
+  nilmInputDetail: document.querySelector("#nilm-input-detail"),
+  nilmOutputDetail: document.querySelector("#nilm-output-detail"),
+  nilmThresholdDetail: document.querySelector("#nilm-threshold-detail"),
+  nilmModelStatus: document.querySelector("#nilm-model-status"),
   chartModeButtons: [...document.querySelectorAll("[data-chart-mode]")],
   compareModeButtons: [...document.querySelectorAll("[data-compare-mode]")],
   deviceActivityList: document.querySelector("#device-activity-list"),
@@ -375,7 +382,9 @@ updatePlannerControls();
 updateSession();
 clearWorkspace();
 renderNilmLab();
-loadNilmLabDemo().catch(() => renderNilmLab());
+loadNilmLabCatalog()
+  .then(loadNilmLabDemo)
+  .catch(() => loadNilmLabDemo().catch(() => renderNilmLab()));
 configureAutoRefresh();
 if (state.token) {
   refreshDashboard().catch(showError);
@@ -531,6 +540,13 @@ async function loadAnomalies() {
   renderAnomalies();
 }
 
+async function loadNilmLabCatalog() {
+  state.nilmCatalog = await fetchJson("/nilm/lab/catalog", { skipAuth: true });
+  reconcileNilmSelection();
+  renderNilmCatalogOptions();
+  renderNilmLab();
+}
+
 async function loadNilmLabDemo() {
   const query = new URLSearchParams({
     dataset: state.nilmDataset,
@@ -548,6 +564,50 @@ function refreshNilmLab() {
     console.warn("Unable to load NILM Lab demo from backend", error);
     renderNilmLab();
   });
+}
+
+function reconcileNilmSelection() {
+  const catalog = state.nilmCatalog;
+  if (!catalog) {
+    return;
+  }
+  if (!catalog.datasets.some((dataset) => dataset.id === state.nilmDataset)) {
+    state.nilmDataset = catalog.default_dataset;
+  }
+  if (!catalog.houses.some((house) => house.id === state.nilmHouse)) {
+    state.nilmHouse = catalog.default_house_id;
+  }
+  if (!catalog.appliances.some((appliance) => appliance.id === state.nilmAppliance)) {
+    state.nilmAppliance = catalog.default_appliance;
+  }
+  localStorage.setItem("voltpulse_nilm_dataset", state.nilmDataset);
+  localStorage.setItem("voltpulse_nilm_house", state.nilmHouse);
+  localStorage.setItem("voltpulse_nilm_appliance", state.nilmAppliance);
+}
+
+function renderNilmCatalogOptions() {
+  const catalog = state.nilmCatalog;
+  if (!catalog) {
+    return;
+  }
+
+  elements.nilmDatasetSelect.innerHTML = "";
+  catalog.datasets.forEach((dataset) => {
+    appendOption(elements.nilmDatasetSelect, dataset.id, dataset.label);
+  });
+  elements.nilmDatasetSelect.value = state.nilmDataset;
+
+  elements.nilmHouseSelect.innerHTML = "";
+  catalog.houses.forEach((house) => {
+    appendOption(elements.nilmHouseSelect, house.id, house.label);
+  });
+  elements.nilmHouseSelect.value = state.nilmHouse;
+
+  elements.nilmApplianceSelect.innerHTML = "";
+  catalog.appliances.forEach((appliance) => {
+    appendOption(elements.nilmApplianceSelect, appliance.id, appliance.label);
+  });
+  elements.nilmApplianceSelect.value = state.nilmAppliance;
 }
 
 async function createHome() {
@@ -816,15 +876,33 @@ function renderNilmLab() {
 
   const appliance = state.nilmAppliance;
   const labSeries = getNilmLabSeries(appliance);
-  const { aggregate, actual, predicted, metrics, modelName } = labSeries;
+  const {
+    aggregate,
+    actual,
+    predicted,
+    metrics,
+    modelName,
+    datasetLabel: activeDatasetLabel,
+    houseLabel,
+    applianceLabel,
+    inputSignal,
+    outputSignal,
+    modelStatus,
+    onThresholdW,
+    task,
+  } = labSeries;
 
-  elements.nilmChartSubtitle.textContent = `${datasetLabel(state.nilmDataset)} · ${titleCase(
-    state.nilmHouse.replace("-", " ")
-  )} · ${titleCase(appliance.replace("_", " "))} · ${titleCase(modelName.replaceAll("_", " "))}`;
+  elements.nilmChartSubtitle.textContent = `${activeDatasetLabel} · ${houseLabel} · ${applianceLabel} · ${titleCase(modelName.replaceAll("_", " "))}`;
   elements.nilmMae.textContent = formatWatts(metrics.mae);
   elements.nilmF1.textContent = metrics.f1.toFixed(2);
   elements.nilmPrecision.textContent = metrics.precision.toFixed(2);
   elements.nilmRecall.textContent = metrics.recall.toFixed(2);
+  elements.nilmDatasetDetail.textContent = activeDatasetLabel;
+  elements.nilmTaskDetail.textContent = task;
+  elements.nilmInputDetail.textContent = inputSignal;
+  elements.nilmOutputDetail.textContent = outputSignal;
+  elements.nilmThresholdDetail.textContent = formatWatts(onThresholdW);
+  elements.nilmModelStatus.textContent = modelStatus;
 
   drawNilmChart(elements.nilmChart, { aggregate, actual, predicted });
 }
@@ -848,6 +926,13 @@ function getNilmLabSeries(appliance) {
         f1: Number(backendData.metrics.f1_score || 0),
       },
       modelName: backendData.model_name || "threshold_step_baseline",
+      ...getNilmLabContext({
+        dataset: backendData.dataset,
+        houseId: backendData.house_id,
+        appliance,
+        modelName: backendData.model_name || "threshold_step_baseline",
+        onThresholdW: Number(backendData.on_threshold_w || 0),
+      }),
     };
   }
 
@@ -867,6 +952,32 @@ function getNilmLabSeries(appliance) {
     predicted,
     metrics: calculateNilmMetrics(actual, predicted, threshold),
     modelName: "local_fallback_baseline",
+    ...getNilmLabContext({
+      dataset: state.nilmDataset,
+      houseId: state.nilmHouse,
+      appliance,
+      modelName: "local_fallback_baseline",
+      onThresholdW: threshold,
+    }),
+  };
+}
+
+function getNilmLabContext({ dataset, houseId, appliance, modelName, onThresholdW }) {
+  const catalog = state.nilmCatalog;
+  const datasetOption = catalog?.datasets.find((entry) => entry.id === dataset);
+  const houseOption = catalog?.houses.find((entry) => entry.id === houseId);
+  const applianceOption = catalog?.appliances.find((entry) => entry.id === appliance);
+  const modelOption = catalog?.models.find((entry) => entry.id === modelName) || catalog?.models[0];
+
+  return {
+    datasetLabel: datasetOption?.label || datasetLabel(dataset),
+    houseLabel: houseOption?.label || titleCase(houseId.replace("-", " ")),
+    applianceLabel: applianceOption?.label || titleCase(appliance.replace("_", " ")),
+    inputSignal: modelOption?.input_signal || "aggregate active power window",
+    outputSignal: modelOption?.output_signal || "appliance active power",
+    modelStatus: modelOption?.status || "baseline",
+    onThresholdW: onThresholdW || applianceOption?.on_threshold_w || 10,
+    task: modelOption?.task || "single-appliance disaggregation",
   };
 }
 

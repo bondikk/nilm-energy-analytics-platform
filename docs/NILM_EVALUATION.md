@@ -63,11 +63,22 @@ The future `NILM Lab` dashboard view should show:
 Initial API endpoint:
 
 ```text
+GET /nilm/lab/catalog
 GET /nilm/lab/demo?dataset=uk-dale&house_id=house-1&appliance=kettle
 ```
 
-This endpoint returns aggregate, real appliance, predicted appliance, and
-baseline evaluation metrics for the dashboard overlay.
+The catalog endpoint returns dataset, house, appliance, threshold, and baseline
+model metadata. The demo endpoint returns aggregate, real appliance, predicted
+appliance, and baseline evaluation metrics for the dashboard overlay.
+
+## How To Read NILM Lab
+
+- `Aggregate` is the whole-home active power signal.
+- `Real appliance` is the appliance-level ground truth from the dataset.
+- `Predicted` is the model output for the selected appliance.
+- `MAE` is the average watt-level reconstruction error.
+- `F1-score`, `precision`, and `recall` evaluate appliance on/off detection
+  using the appliance threshold shown in the model card.
 
 ## Evaluation Rules
 
