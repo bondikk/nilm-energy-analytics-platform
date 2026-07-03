@@ -100,6 +100,7 @@ const elements = {
   nilmF1: document.querySelector("#nilm-f1"),
   nilmPrecision: document.querySelector("#nilm-precision"),
   nilmRecall: document.querySelector("#nilm-recall"),
+  nilmReportButton: document.querySelector("#nilm-report-button"),
   nilmDatasetDetail: document.querySelector("#nilm-dataset-detail"),
   nilmTaskDetail: document.querySelector("#nilm-task-detail"),
   nilmInputDetail: document.querySelector("#nilm-input-detail"),
@@ -376,6 +377,10 @@ elements.nilmApplianceSelect.addEventListener("change", () => {
   refreshNilmLab();
 });
 
+elements.nilmReportButton.addEventListener("click", async () => {
+  await exportNilmLabReport();
+});
+
 setActiveView(state.activeView);
 updateChartControls();
 updatePlannerControls();
@@ -564,6 +569,30 @@ function refreshNilmLab() {
     console.warn("Unable to load NILM Lab demo from backend", error);
     renderNilmLab();
   });
+}
+
+async function exportNilmLabReport() {
+  setBusy(true);
+  try {
+    const query = new URLSearchParams({
+      dataset: state.nilmDataset,
+      house_id: state.nilmHouse,
+      appliance: state.nilmAppliance,
+    });
+    const report = await fetchJson(`/nilm/lab/report?${query}`, { skipAuth: true });
+    const blob = new Blob([report.markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `voltpulse-nilm-${report.dataset}-${report.house_id}-${report.appliance}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    showMessage("Exported NILM experiment report.");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setBusy(false);
+  }
 }
 
 function reconcileNilmSelection() {
@@ -2222,6 +2251,7 @@ function setBusy(isBusy) {
     elements.seedForm.querySelector("button"),
     elements.liveMqttForm.querySelector("button"),
     elements.liveSpikeButton,
+    elements.nilmReportButton,
   ].forEach((button) => {
     button.disabled = isBusy;
   });

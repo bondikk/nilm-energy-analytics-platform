@@ -158,3 +158,12 @@ class NILMLabCatalogRead(BaseModel):
     houses: list[NILMLabHouseRead]
     appliances: list[NILMLabApplianceRead]
     models: list[NILMLabModelRead]
+
+
+class NILMLabReportRead(BaseModel):
+    dataset: str
+    house_id: str
+    appliance: str
+    model_name: str
+    generated_at: datetime
+    markdown: str

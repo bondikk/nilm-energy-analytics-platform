@@ -37,6 +37,7 @@ from app.schemas.nilm import (
     NILMLabMetricsRead,
     NILMLabModelRead,
     NILMLabPointRead,
+    NILMLabReportRead,
 )
 from app.services.nilm_analysis import NILMDetectionConfig, NILMReading, analyze_load_profile
 
@@ -120,6 +121,77 @@ async def get_nilm_lab_demo(
     dataset: Annotated[str, Query()] = "uk-dale",
     house_id: Annotated[str, Query()] = "house-1",
     appliance: Annotated[str, Query()] = "kettle",
+) -> NILMLabDemoRead:
+    return _build_nilm_lab_demo(dataset=dataset, house_id=house_id, appliance=appliance)
+
+
+@lab_router.get("/report", response_model=NILMLabReportRead)
+async def get_nilm_lab_report(
+    dataset: Annotated[str, Query()] = "uk-dale",
+    house_id: Annotated[str, Query()] = "house-1",
+    appliance: Annotated[str, Query()] = "kettle",
+) -> NILMLabReportRead:
+    demo = _build_nilm_lab_demo(dataset=dataset, house_id=house_id, appliance=appliance)
+    generated_at = datetime.now(UTC)
+
+    markdown = "\n".join(
+        [
+            "# NILM Experiment Report",
+            "",
+            f"- Dataset: {demo.dataset_label}",
+            f"- House: {demo.house_id.replace('-', ' ').title()}",
+            f"- Appliance: {demo.appliance_label}",
+            f"- Model: {demo.model_name}",
+            f"- Sample period: {demo.sample_period_seconds} seconds",
+            f"- On threshold: {demo.on_threshold_w:g} W",
+            f"- Generated at: {generated_at.isoformat()}",
+            "",
+            "## Method",
+            "",
+            "This experiment evaluates single-appliance disaggregation from aggregate active power.",
+            "The baseline detects aggregate power step changes and maps step magnitude ranges to appliance signatures.",
+            "",
+            "## Signals",
+            "",
+            "- Input: aggregate whole-home active power.",
+            "- Ground truth: appliance-level active power from the dataset sample.",
+            "- Prediction: appliance active power estimated by the threshold step baseline.",
+            "",
+            "## Metrics",
+            "",
+            f"- MAE: {demo.metrics.mae_w:g} W",
+            f"- RMSE: {demo.metrics.rmse_w:g} W",
+            f"- Precision: {demo.metrics.precision:g}",
+            f"- Recall: {demo.metrics.recall:g}",
+            f"- F1-score: {demo.metrics.f1_score:g}",
+            "",
+            "## Interpretation",
+            "",
+            "MAE and RMSE measure watt-level reconstruction quality. Precision, recall, and F1-score measure on/off detection using the appliance threshold above.",
+            "",
+            "## Limitations",
+            "",
+            "- This is a baseline demonstration, not a production NILM model.",
+            "- The current sample is small and intended to validate the platform pipeline.",
+            "- Future reports should compare train/test splits, multiple houses, and ML or Seq2Point models.",
+        ]
+    )
+
+    return NILMLabReportRead(
+        dataset=demo.dataset,
+        house_id=demo.house_id,
+        appliance=demo.appliance,
+        model_name=demo.model_name,
+        generated_at=generated_at,
+        markdown=markdown,
+    )
+
+
+def _build_nilm_lab_demo(
+    *,
+    dataset: str,
+    house_id: str,
+    appliance: str,
 ) -> NILMLabDemoRead:
     if dataset not in SUPPORTED_LAB_DATASETS:
         raise HTTPException(

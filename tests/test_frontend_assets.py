@@ -20,6 +20,7 @@ def test_frontend_entrypoint_references_assets() -> None:
     assert 'id="live-mqtt-form"' in html
     assert 'id="nilm-chart"' in html
     assert 'id="nilm-task-detail"' in html
+    assert 'id="nilm-report-button"' in html
 
 
 def test_frontend_app_points_to_local_backend() -> None:
@@ -33,6 +34,8 @@ def test_frontend_app_points_to_local_backend() -> None:
     assert "/demo/live-metric" in app_js
     assert "/nilm/lab/demo" in app_js
     assert "/nilm/lab/catalog" in app_js
+    assert "/nilm/lab/report" in app_js
+    assert "exportNilmLabReport" in app_js
     assert "new WebSocket" in app_js
     assert "/metrics/live" in app_js
     assert "renderNilmLab" in app_js

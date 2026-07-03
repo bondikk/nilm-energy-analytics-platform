@@ -65,11 +65,14 @@ Initial API endpoint:
 ```text
 GET /nilm/lab/catalog
 GET /nilm/lab/demo?dataset=uk-dale&house_id=house-1&appliance=kettle
+GET /nilm/lab/report?dataset=uk-dale&house_id=house-1&appliance=kettle
 ```
 
 The catalog endpoint returns dataset, house, appliance, threshold, and baseline
 model metadata. The demo endpoint returns aggregate, real appliance, predicted
-appliance, and baseline evaluation metrics for the dashboard overlay.
+appliance, and baseline evaluation metrics for the dashboard overlay. The report
+endpoint returns a Markdown experiment report suitable for thesis notes,
+reproducibility logs, and future commercial model audit trails.
 
 ## How To Read NILM Lab
 
@@ -79,6 +82,17 @@ appliance, and baseline evaluation metrics for the dashboard overlay.
 - `MAE` is the average watt-level reconstruction error.
 - `F1-score`, `precision`, and `recall` evaluate appliance on/off detection
   using the appliance threshold shown in the model card.
+
+## Report Workflow
+
+Every NILM Lab report should make the experiment reproducible:
+
+- dataset and house
+- appliance and on/off threshold
+- model name and task
+- input and output signals
+- regression and classification metrics
+- interpretation and known limitations
 
 ## Evaluation Rules
 

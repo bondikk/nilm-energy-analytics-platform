@@ -5,7 +5,12 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.api.routes.nilm import get_nilm_analysis, get_nilm_lab_catalog, get_nilm_lab_demo
+from app.api.routes.nilm import (
+    get_nilm_analysis,
+    get_nilm_lab_catalog,
+    get_nilm_lab_demo,
+    get_nilm_lab_report,
+)
 from app.main import app
 from app.services.nilm_analysis import (
     NILMDetectionConfig,
@@ -33,6 +38,7 @@ def test_nilm_analysis_route_is_registered() -> None:
     )
     assert str(app.url_path_for("get_nilm_lab_demo")) == "/nilm/lab/demo"
     assert str(app.url_path_for("get_nilm_lab_catalog")) == "/nilm/lab/catalog"
+    assert str(app.url_path_for("get_nilm_lab_report")) == "/nilm/lab/report"
 
 
 def test_nilm_analysis_detects_power_step_events() -> None:
@@ -140,6 +146,24 @@ async def test_nilm_lab_catalog_describes_available_experiments() -> None:
     assert catalog.appliances[0].nominal_power_w == 2200
     assert catalog.models[0].id == "threshold_step_baseline"
     assert catalog.models[0].task == "single-appliance disaggregation"
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_report_returns_reproducible_markdown() -> None:
+    report = await get_nilm_lab_report(
+        dataset="uk-dale",
+        house_id="house-1",
+        appliance="kettle",
+    )
+
+    assert report.dataset == "uk-dale"
+    assert report.house_id == "house-1"
+    assert report.appliance == "kettle"
+    assert report.model_name == "threshold_step_baseline"
+    assert "# NILM Experiment Report" in report.markdown
+    assert "- Dataset: UK-DALE" in report.markdown
+    assert "- Appliance: Kettle" in report.markdown
+    assert "## Limitations" in report.markdown
 
 
 @pytest.mark.asyncio
