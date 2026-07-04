@@ -90,3 +90,5 @@ def test_backend_allows_local_frontend_origin() -> None:
     assert "http://localhost:5173" in settings.frontend_origins
     assert "http://127.0.0.1:5174" in settings.frontend_origins
     assert "http://localhost:5174" in settings.frontend_origins
+    assert "http://127.0.0.1:5175" in settings.frontend_origins
+    assert "http://localhost:5175" in settings.frontend_origins
