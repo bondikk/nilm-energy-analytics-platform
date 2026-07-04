@@ -1,12 +1,12 @@
 # VoltPulse Analytics
 
-Premium NILM energy analytics platform for home electricity monitoring, smart
-meter telemetry, anomaly detection, and appliance-level disaggregation research.
+Research MVP / engineering prototype for home electricity monitoring, smart
+meter telemetry, anomaly detection, and baseline NILM research.
 
 VoltPulse combines a FastAPI backend, PostgreSQL/TimescaleDB storage, Redis,
 Mosquitto, Redis Streams ingestion, public NILM dataset tooling, demo data
-generation, and a polished dark "Energy Control Room" dashboard for exploring
-energy usage in a smart home.
+generation, and a React "Energy Control Room" dashboard for exploring energy
+usage in a smart home.
 
 ![VoltPulse Energy Control Room](docs/screenshots/01-energy-control-room.png)
 
@@ -17,17 +17,16 @@ VoltPulse is built around one practical question:
 > What is happening in the home energy system right now, and what should the
 > user do next?
 
-The dashboard turns raw meter readings into an operator-style view with:
+The current prototype turns raw meter readings into an operator-style research
+view with:
 
 - live energy KPIs and sparklines
 - active power, voltage, current, and estimated cost chart modes
 - Today vs Yesterday comparison overlay
-- device activity cards with impact indicators
 - anomaly timeline and triage workflow
-- load shift planner with savings, peak reduction, and CO2 estimates
 - MQTT to Redis Streams to TimescaleDB ingestion pipeline
 - public dataset conversion for UK-DALE, REDD, and REFIT experiments
-- baseline appliance-level disaggregation metrics
+- baseline NILM research module metrics
 - NILM signal analysis for detecting load step events from meter readings
 - automatic anomaly creation from fresh NILM load events
 - WebSocket live metric updates for the dashboard chart and readings table
@@ -40,10 +39,10 @@ The dashboard turns raw meter readings into an operator-style view with:
 The hero screenshot at the top shows the intelligence strip, energy KPIs,
 interactive chart, device activity, and selected device inspector.
 
-### Energy Insights
+### NILM Lab
 
-The lower overview area highlights savings, always-on load, load shifting, and
-recent anomaly context.
+The NILM Lab view shows aggregate power, appliance ground truth, baseline
+prediction, and evaluation metrics for a small dataset-backed experiment.
 
 ![Energy insights and anomaly timeline](docs/screenshots/02-insights-planner-timeline.png)
 
@@ -75,7 +74,7 @@ flowchart LR
   Detector --> AnomaliesDB["Anomaly records"]
   Writer --> LiveBus["Redis Pub/Sub live metric events"]
 
-  User["User"] --> Frontend["Static Energy Control Room dashboard"]
+  User["User"] --> Frontend["React Energy Control Room dashboard"]
   Frontend --> API["FastAPI backend"]
   API --> WS["Metrics WebSocket"]
   WS --> LiveBus
@@ -87,7 +86,7 @@ flowchart LR
   API --> NILM["NILM signal analysis"]
   API --> Demo["Demo data seeding"]
   Dataset["UK-DALE / REDD / REFIT"] --> Converter["Unified NILM dataset schema"]
-  Converter --> Models["Baseline and Seq2Point experiments"]
+  Converter --> Models["Baseline models and future Seq2Point experiments"]
   Models --> Reports["NILM evaluation reports"]
   Reports --> API
   Metrics --> DB
@@ -113,6 +112,50 @@ flowchart LR
 | Local stack | Docker Compose |
 | Quality | Pytest, Ruff, Mypy |
 
+## Capability Status
+
+### Implemented
+
+- FastAPI backend with JWT authentication and current-user profile endpoint.
+- Docker Compose stack for backend, PostgreSQL/TimescaleDB, Redis, and Mosquitto.
+- Alembic migrations executed on backend container startup.
+- Homes, devices, energy metrics, analytics summary, anomalies, and demo seed APIs.
+- MQTT ingestion path: Mosquitto -> Redis Streams -> metrics writer -> database.
+- Redis Pub/Sub and `/metrics/live` WebSocket for live metric events.
+- React + TypeScript + Vite frontend with public landing page and authenticated dashboard shell.
+- Typed frontend API client, loading skeletons, empty states, error states, and command palette.
+- NILM signal analysis endpoint for step-change detection over stored meter readings.
+- Baseline NILM research module with unified CSV schema, sample UK-DALE-style data, threshold baseline, and evaluation metrics.
+- NILM Lab demo page with aggregate, ground-truth, and predicted appliance power overlay.
+- Reproducible NILM Lab report endpoint.
+
+### Partially implemented
+
+- Public NILM dataset support: UK-DALE conversion path exists; REDD and REFIT loaders are scaffolds.
+- Appliance-level prediction: rule-based baseline exists; trained ML and deep learning models are not production-ready.
+- Anomaly workflow: backend records and frontend list exist; advanced investigation and alert policy management are still basic.
+- Live dashboard updates: backend WebSocket exists; full frontend reconnect and cross-page realtime UX needs more hardening.
+- Simulator: local demo seed and live metric publishing exist; it is a developer/demo tool, not a production device simulator.
+
+### Planned
+
+- Experiment run tracking with saved configs, train/test split metadata, metrics, and artifacts.
+- Random Forest / logistic-regression NILM baselines.
+- Seq2Point CNN prototype after baseline evaluation is stable.
+- Dataset download/import guides for full UK-DALE, REDD, and REFIT workflows.
+- Frontend dataset exploration views and model comparison reports.
+- User-facing recommendations based on measured anomalies and NILM events.
+- Deployment documentation for a non-local environment.
+
+### Not implemented
+
+- Production-grade commercial billing, tariff engine, or invoicing.
+- Production MQTT device fleet management.
+- Online multi-appliance NILM inference from live MQTT streams.
+- Model retraining orchestration or model registry.
+- Mobile app.
+- Security hardening for public internet deployment.
+
 ## Core Features
 
 ### Energy Control Room
@@ -129,16 +172,7 @@ flowchart LR
 - Overlay chart for aggregate power, appliance ground truth, and model prediction.
 - Metrics for MAE, F1-score, precision, recall, sample count, and source file.
 - Markdown report export for reproducible NILM experiments.
-- Mini sparklines and percentage impact rings.
-- Clickable device inspector with recommended action and priority.
-
-### Energy Insights
-
-- Projected monthly cost.
-- Always-on load estimate.
-- Saving opportunity.
-- Most expensive hour.
-- Load Shift Planner with Balanced, Eco, and Comfort modes.
+- Dataset-backed experiment context including source file, sample period, and model card.
 
 ### Backend API
 
@@ -165,14 +199,13 @@ flowchart LR
 
 ### NILM Dataset-Based Disaggregation
 
-VoltPulse includes an experimental NILM research module for appliance-level
-energy disaggregation.
+VoltPulse includes an experimental baseline NILM research module.
 
 The module supports public NILM datasets such as UK-DALE, REDD, and REFIT. It
 converts raw dataset files into a unified internal format, builds
 sequence-to-point training windows, runs a rule-based baseline model, evaluates
-predictions against appliance-level ground truth, and prepares results for the
-FastAPI backend and dashboard.
+predictions against appliance-level ground truth, and exposes a small
+dataset-backed demo through the FastAPI backend and dashboard.
 
 The first NILM Lab experiment is backed by a committed unified CSV sample at
 `data/samples/uk_dale_house_1_sample.csv`; the backend reads the packaged copy
@@ -188,13 +221,9 @@ Implemented methods:
 - appliance on/off classification metrics
 - MAE and RMSE reconstruction metrics
 
-Planned:
-
-- `NILM Lab` dashboard view
-- Random Forest and logistic-regression baselines
-- Seq2Point CNN prototype
-- multi-appliance disaggregation
-- online inference from MQTT streams
+Planned next methods are Random Forest / logistic-regression baselines,
+Seq2Point CNN experiments, multi-appliance evaluation, and eventually online
+inference from MQTT streams.
 
 ### Streaming Ingestion
 
@@ -211,8 +240,7 @@ Planned:
 
 ### Live Metrics WebSocket
 
-- Backend endpoint: `GET /homes/{home_id}/metrics/live` as a WebSocket
-  connection.
+- Backend endpoint: `/metrics/live` as a WebSocket connection.
 - Auth uses the same JWT access token as the REST API, passed as a `token`
   query parameter.
 - Optional `device_id` filtering keeps each dashboard connected only to the
@@ -232,10 +260,40 @@ Planned:
 
 ## Quick Start
 
+### 0. Prepare local environment
+
+Copy the example environment file before starting Docker Compose:
+
+```bash
+cp .env.example .env
+```
+
+Install backend and frontend development dependencies:
+
+```bash
+make setup
+```
+
+You can also run the setup manually:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -e "./backend[dev]"
+cd frontend
+npm install
+```
+
 ### 1. Start the backend stack
 
 ```bash
-docker compose up --build
+make up
+```
+
+Equivalent manual command:
+
+```bash
+docker compose up -d --build
 ```
 
 The backend starts on:
@@ -255,8 +313,13 @@ http://127.0.0.1:8000/docs
 In a second terminal:
 
 ```bash
+make frontend
+```
+
+Equivalent manual command:
+
+```bash
 cd frontend
-npm install
 npm run dev
 ```
 
@@ -265,6 +328,9 @@ Open:
 ```text
 http://127.0.0.1:5173
 ```
+
+If Vite reports that `5173` is already in use, open the port shown in the
+terminal, for example `http://127.0.0.1:5174` or `http://127.0.0.1:5175`.
 
 ### 3. Seed demo data
 
@@ -278,6 +344,8 @@ curl -X POST http://127.0.0.1:8000/demo/seed \
 
 Use your own local demo email and password. The frontend does not ship default
 demo credentials.
+
+After seeding, use the same email and password on the dashboard sign-in form.
 
 ### 4. Send a streaming metric through MQTT
 
@@ -357,6 +425,34 @@ PYTHONPATH=backend .venv/bin/python -m app.tools.convert_uk_dale \
   --output data/processed/uk_dale_house_1.csv
 ```
 
+## Troubleshooting
+
+### Login says `Load failed`
+
+- Confirm the backend is running: `curl http://127.0.0.1:8000/health`.
+- Confirm the frontend URL is listed in `FRONTEND_ORIGINS` inside `.env`.
+- If Vite started on a new port, add both `http://127.0.0.1:PORT` and
+  `http://localhost:PORT` to `FRONTEND_ORIGINS`, then rebuild the backend:
+  `docker compose up -d --build backend`.
+- Seed a local user with `POST /demo/seed`, then sign in with the same email and
+  password.
+
+### Docker cannot connect
+
+- Start Docker Desktop.
+- Retry `make up`.
+- Check container status with `docker compose ps`.
+
+### Frontend dependencies are missing
+
+- Run `cd frontend && npm install`.
+- For CI-like checks, run `cd frontend && npm run typecheck && npm run build`.
+
+### Backend tests cannot import `app`
+
+- Run commands with `PYTHONPATH=backend`.
+- Or use `make test`, which sets the path for the backend tests.
+
 ## Project Structure
 
 ```text
@@ -401,23 +497,39 @@ PYTHONPATH=backend .venv/bin/python -m app.tools.convert_uk_dale \
 
 ## Quality Checks
 
-Run tests:
+Run the common local checks through Make:
+
+```bash
+make test
+make lint
+make frontend-build
+```
+
+Backend tests:
 
 ```bash
 PYTHONPATH=backend .venv/bin/python -m pytest -q
 ```
 
-Run linting:
+Backend linting:
 
 ```bash
 PYTHONPATH=backend .venv/bin/python -m ruff check backend tests
 ```
 
-Run type checks:
+Backend type checks:
 
 ```bash
 cd backend
 ../.venv/bin/python -m mypy app
+```
+
+Frontend typecheck and production build:
+
+```bash
+cd frontend
+npm run typecheck
+npm run build
 ```
 
 ## Current Status
