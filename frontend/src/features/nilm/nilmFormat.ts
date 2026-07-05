@@ -5,3 +5,7 @@ export function formatMetric(value: number, digits = 2) {
 export function formatWatts(value: number) {
   return `${Math.round(value).toLocaleString()} W`;
 }
+
+export function formatEnergyWh(value: number) {
+  return `${value.toFixed(2)} Wh`;
+}

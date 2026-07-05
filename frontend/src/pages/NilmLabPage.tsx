@@ -1,4 +1,4 @@
-import { Download, Microscope, Target, Waves } from "lucide-react";
+import { Activity, Download, Gauge, Microscope, Target, Waves } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { NilmOverlayChart } from "../components/charts/NilmOverlayChart";
@@ -7,7 +7,13 @@ import { ErrorState } from "../components/ui/ErrorState";
 import { LoadingSkeleton } from "../components/ui/LoadingSkeleton";
 import { MetricCard } from "../components/ui/MetricCard";
 import { StatusPill } from "../components/ui/StatusPill";
-import { formatMetric, formatWatts } from "../features/nilm/nilmFormat";
+import {
+  DEFAULT_NILM_OVERLAY_VISIBILITY,
+  buildNilmChartPoints,
+  summarizeNilmExperiment,
+  type NilmOverlayVisibility,
+} from "../features/nilm/nilmExperiment";
+import { formatEnergyWh, formatMetric, formatWatts } from "../features/nilm/nilmFormat";
 import { apiClient } from "../services/apiClient";
 import type { NILMLabCatalogRead, NILMLabDemoRead } from "../types/api";
 
@@ -20,6 +26,9 @@ export function NilmLabPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
+  const [visibility, setVisibility] = useState<NilmOverlayVisibility>(
+    DEFAULT_NILM_OVERLAY_VISIBILITY,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +85,11 @@ export function NilmLabPage() {
 
   const selectedModel = catalog?.models[0];
   const selectedAppliance = catalog?.appliances.find((item) => item.id === appliance);
+  const chartPoints = useMemo(() => buildNilmChartPoints(demo?.points ?? []), [demo]);
+  const experimentSummary = useMemo(
+    () => (demo ? summarizeNilmExperiment(demo) : null),
+    [demo],
+  );
   const maxAggregate = useMemo(
     () => Math.max(...(demo?.points.map((point) => point.aggregate_power_w) ?? [0])),
     [demo],
@@ -95,6 +109,13 @@ export function NilmLabPage() {
     } finally {
       setReportBusy(false);
     }
+  }
+
+  function toggleSeries(series: keyof NilmOverlayVisibility) {
+    setVisibility((current) => ({
+      ...current,
+      [series]: !current[series],
+    }));
   }
 
   if (error) {
@@ -119,7 +140,7 @@ export function NilmLabPage() {
       <section className="nilm-header">
         <div>
           <span className="eyebrow">Sequence-to-point baseline surface</span>
-          <h2>Dataset-backed appliance disaggregation</h2>
+          <h2>NILM prediction overlay lab</h2>
           <p>
             Compare aggregate power, appliance ground truth, and baseline prediction from the
             unified NILM sample.
@@ -193,6 +214,37 @@ export function NilmLabPage() {
         />
       </section>
 
+      {experimentSummary ? (
+        <section className="metric-grid">
+          <MetricCard
+            detail="Largest point-level miss"
+            icon={<Gauge size={18} />}
+            label="Max error"
+            tone="red"
+            value={formatWatts(experimentSummary.maxAbsoluteErrorW)}
+          />
+          <MetricCard
+            detail="Ground-truth on samples"
+            icon={<Activity size={18} />}
+            label="Actual active"
+            tone="green"
+            value={String(experimentSummary.activeGroundTruthSamples)}
+          />
+          <MetricCard
+            detail="Predicted on samples"
+            icon={<Activity size={18} />}
+            label="Predicted active"
+            tone="amber"
+            value={String(experimentSummary.activePredictionSamples)}
+          />
+          <MetricCard
+            detail={`Actual ${formatEnergyWh(experimentSummary.actualEnergyWh)}`}
+            label="Energy error"
+            value={formatEnergyWh(experimentSummary.energyErrorWh)}
+          />
+        </section>
+      ) : null}
+
       <section className="panel">
         <div className="panel__heading">
           <div>
@@ -201,7 +253,30 @@ export function NilmLabPage() {
           </div>
           <StatusPill tone="success">{demo.model_name}</StatusPill>
         </div>
-        <NilmOverlayChart points={demo.points} />
+        <div className="overlay-toolbar" aria-label="NILM overlay series">
+          {[
+            ["aggregate", "Aggregate"],
+            ["actual", "Ground truth"],
+            ["predicted", "Prediction"],
+            ["error", "Absolute error"],
+          ].map(([series, label]) => (
+            <button
+              className={`overlay-toggle ${
+                visibility[series as keyof NilmOverlayVisibility] ? "is-active" : ""
+              }`}
+              key={series}
+              type="button"
+              onClick={() => toggleSeries(series as keyof NilmOverlayVisibility)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <NilmOverlayChart
+          points={chartPoints}
+          thresholdW={demo.on_threshold_w}
+          visibility={visibility}
+        />
       </section>
 
       <section className="model-grid">
@@ -243,6 +318,40 @@ export function NilmLabPage() {
             </div>
           </dl>
         </article>
+      </section>
+
+      <section className="panel">
+        <div className="panel__heading">
+          <div>
+            <span className="eyebrow">Sample-level audit</span>
+            <h2>Prediction points</h2>
+          </div>
+          <StatusPill>{demo.sample_count} samples</StatusPill>
+        </div>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Aggregate</th>
+                <th>Ground truth</th>
+                <th>Prediction</th>
+                <th>Abs. error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {chartPoints.map((point) => (
+                <tr key={point.ts}>
+                  <td>{point.label}</td>
+                  <td>{formatWatts(point.aggregate)}</td>
+                  <td>{formatWatts(point.actual)}</td>
+                  <td>{formatWatts(point.predicted)}</td>
+                  <td>{formatWatts(point.absoluteError)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

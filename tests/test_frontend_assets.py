@@ -31,6 +31,7 @@ def test_frontend_uses_react_typescript_vite_structure() -> None:
         "src/pages/SettingsPage.tsx",
         "src/components/layout/DashboardLayout.tsx",
         "src/components/charts/NilmOverlayChart.tsx",
+        "src/features/nilm/nilmExperiment.ts",
         "src/services/apiClient.ts",
         "src/services/websocketClient.ts",
         "src/types/api.ts",
@@ -80,9 +81,15 @@ def test_frontend_nilm_lab_has_prediction_overlay_chart() -> None:
     assert "apiClient.nilmDemo" in nilm_page
     assert "apiClient.nilmReport" in nilm_page
     assert "NilmOverlayChart" in nilm_page
+    assert "toggleSeries" in nilm_page
+    assert "Prediction points" in nilm_page
+    assert "Sample-level audit" in nilm_page
+    assert "Absolute error" in nilm_page
     assert "aggregate" in nilm_chart
     assert "actual" in nilm_chart
     assert "predicted" in nilm_chart
+    assert "absoluteError" in nilm_chart
+    assert "ReferenceLine" in nilm_chart
 
 
 def test_backend_allows_local_frontend_origin() -> None:
