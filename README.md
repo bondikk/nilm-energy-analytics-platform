@@ -126,6 +126,7 @@ flowchart LR
 - Typed frontend API client, loading skeletons, empty states, error states, and command palette.
 - NILM signal analysis endpoint for step-change detection over stored meter readings.
 - Baseline NILM research module with unified CSV schema, sample UK-DALE-style data, threshold baseline, and evaluation metrics.
+- Dataset Library API and dashboard section for UK-DALE, REDD, and REFIT scale, local file status, and import steps.
 - NILM Lab demo page with aggregate, ground-truth, and predicted appliance power overlay.
 - Reproducible NILM Lab report endpoint.
 
@@ -169,6 +170,7 @@ flowchart LR
 ### NILM Lab
 
 - Dataset, house, and appliance selectors backed by the FastAPI NILM catalog.
+- Dataset Library cards for UK-DALE, REDD, and REFIT with local raw/processed/sample availability.
 - Overlay chart for aggregate power, appliance ground truth, and model prediction.
 - Metrics for MAE, F1-score, precision, recall, sample count, and source file.
 - Markdown report export for reproducible NILM experiments.
@@ -374,6 +376,7 @@ docker compose exec mosquitto mosquitto_pub \
 | `/homes/{home_id}/analytics/summary` | Aggregated energy analytics |
 | `/homes/{home_id}/nilm/analysis` | NILM load event analysis |
 | `/nilm/lab/catalog` | NILM Lab dataset, appliance, and model metadata |
+| `/nilm/lab/datasets` | Dataset library metadata and local availability |
 | `/nilm/lab/demo` | Public NILM Lab dataset baseline demo |
 | `/nilm/lab/report` | Reproducible NILM experiment report |
 | `/metrics/live` | Live metrics WebSocket |
@@ -413,6 +416,7 @@ NILM Lab demo endpoint:
 
 ```bash
 curl "http://127.0.0.1:8000/nilm/lab/catalog"
+curl "http://127.0.0.1:8000/nilm/lab/datasets"
 curl "http://127.0.0.1:8000/nilm/lab/demo?dataset=uk-dale&house_id=house-1&appliance=kettle"
 curl "http://127.0.0.1:8000/nilm/lab/report?dataset=uk-dale&house_id=house-1&appliance=kettle"
 ```

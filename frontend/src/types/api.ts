@@ -138,6 +138,32 @@ export interface NILMLabCatalogRead {
   }>;
 }
 
+export interface NILMLabDatasetInventoryItemRead {
+  id: string;
+  label: string;
+  description: string;
+  scope: string;
+  houses: number;
+  appliances: string[];
+  sample_period: string;
+  estimated_scale: string;
+  public_reference: string;
+  raw_path: string;
+  processed_path: string;
+  sample_path: string | null;
+  status: string;
+  raw_available: boolean;
+  processed_available: boolean;
+  sample_available: boolean;
+  actions: string[];
+}
+
+export interface NILMLabDatasetsRead {
+  datasets: NILMLabDatasetInventoryItemRead[];
+  storage_note: string;
+  ingestion_note: string;
+}
+
 export interface NILMLabReportRead {
   dataset: string;
   house_id: string;

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.api.routes.nilm import (
     get_nilm_analysis,
     get_nilm_lab_catalog,
+    get_nilm_lab_datasets,
     get_nilm_lab_demo,
     get_nilm_lab_report,
 )
@@ -38,6 +39,7 @@ def test_nilm_analysis_route_is_registered() -> None:
     )
     assert str(app.url_path_for("get_nilm_lab_demo")) == "/nilm/lab/demo"
     assert str(app.url_path_for("get_nilm_lab_catalog")) == "/nilm/lab/catalog"
+    assert str(app.url_path_for("get_nilm_lab_datasets")) == "/nilm/lab/datasets"
     assert str(app.url_path_for("get_nilm_lab_report")) == "/nilm/lab/report"
 
 
@@ -148,6 +150,29 @@ async def test_nilm_lab_catalog_describes_available_experiments() -> None:
     assert catalog.appliances[0].nominal_power_w == 2200
     assert catalog.models[0].id == "threshold_step_baseline"
     assert catalog.models[0].task == "single-appliance disaggregation"
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_datasets_describes_scale_and_local_availability() -> None:
+    inventory = await get_nilm_lab_datasets()
+
+    assert "not committed to git" in inventory.storage_note
+    assert "unified CSV schema" in inventory.ingestion_note
+    assert [dataset.id for dataset in inventory.datasets] == ["uk-dale", "redd", "refit"]
+
+    uk_dale = inventory.datasets[0]
+    assert uk_dale.label == "UK-DALE"
+    assert uk_dale.houses == 5
+    assert "kettle" in uk_dale.appliances
+    assert uk_dale.sample_path == "data/samples/uk_dale_house_1_sample.csv"
+    assert uk_dale.sample_available is True
+    assert uk_dale.raw_path == "data/raw/uk-dale/"
+    assert uk_dale.processed_path == "data/processed/uk_dale_house_1.csv"
+    assert uk_dale.status == "first-class target"
+
+    refit = inventory.datasets[2]
+    assert refit.houses == 20
+    assert refit.status == "loader scaffold"
 
 
 @pytest.mark.asyncio

@@ -131,6 +131,32 @@ class NILMLabDatasetRead(BaseModel):
     description: str
 
 
+class NILMLabDatasetInventoryItemRead(BaseModel):
+    id: str
+    label: str
+    description: str
+    scope: str
+    houses: int
+    appliances: list[str]
+    sample_period: str
+    estimated_scale: str
+    public_reference: str
+    raw_path: str
+    processed_path: str
+    sample_path: str | None
+    status: str
+    raw_available: bool
+    processed_available: bool
+    sample_available: bool
+    actions: list[str]
+
+
+class NILMLabDatasetsRead(BaseModel):
+    datasets: list[NILMLabDatasetInventoryItemRead]
+    storage_note: str
+    ingestion_note: str
+
+
 class NILMLabHouseRead(BaseModel):
     id: str
     label: str

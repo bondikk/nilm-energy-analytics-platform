@@ -1,4 +1,14 @@
-import { Activity, Download, Gauge, Microscope, Target, Waves } from "lucide-react";
+import {
+  Activity,
+  Database,
+  Download,
+  Gauge,
+  HardDrive,
+  Microscope,
+  Target,
+  Waves,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { NilmOverlayChart } from "../components/charts/NilmOverlayChart";
@@ -15,10 +25,16 @@ import {
 } from "../features/nilm/nilmExperiment";
 import { formatEnergyWh, formatMetric, formatWatts } from "../features/nilm/nilmFormat";
 import { apiClient } from "../services/apiClient";
-import type { NILMLabCatalogRead, NILMLabDemoRead } from "../types/api";
+import type {
+  NILMLabCatalogRead,
+  NILMLabDatasetInventoryItemRead,
+  NILMLabDatasetsRead,
+  NILMLabDemoRead,
+} from "../types/api";
 
 export function NilmLabPage() {
   const [catalog, setCatalog] = useState<NILMLabCatalogRead | null>(null);
+  const [datasetLibrary, setDatasetLibrary] = useState<NILMLabDatasetsRead | null>(null);
   const [demo, setDemo] = useState<NILMLabDemoRead | null>(null);
   const [dataset, setDataset] = useState("uk-dale");
   const [houseId, setHouseId] = useState("house-1");
@@ -34,9 +50,13 @@ export function NilmLabPage() {
     let cancelled = false;
     async function loadCatalog() {
       try {
-        const nextCatalog = await apiClient.nilmCatalog();
+        const [nextCatalog, nextDatasetLibrary] = await Promise.all([
+          apiClient.nilmCatalog(),
+          apiClient.nilmDatasets(),
+        ]);
         if (!cancelled) {
           setCatalog(nextCatalog);
+          setDatasetLibrary(nextDatasetLibrary);
           setDataset(nextCatalog.default_dataset);
           setHouseId(nextCatalog.default_house_id);
           setAppliance(nextCatalog.default_appliance);
@@ -184,6 +204,16 @@ export function NilmLabPage() {
           </select>
         </label>
       </section>
+
+      {datasetLibrary ? (
+        <DatasetLibraryPanel
+          datasets={datasetLibrary.datasets}
+          ingestionNote={datasetLibrary.ingestion_note}
+          selectedDataset={dataset}
+          storageNote={datasetLibrary.storage_note}
+          onSelectDataset={setDataset}
+        />
+      ) : null}
 
       <section className="metric-grid">
         <MetricCard
@@ -353,6 +383,122 @@ export function NilmLabPage() {
           </table>
         </div>
       </section>
+    </div>
+  );
+}
+
+function DatasetLibraryPanel({
+  datasets,
+  ingestionNote,
+  selectedDataset,
+  storageNote,
+  onSelectDataset,
+}: {
+  datasets: NILMLabDatasetInventoryItemRead[];
+  ingestionNote: string;
+  selectedDataset: string;
+  storageNote: string;
+  onSelectDataset: (dataset: string) => void;
+}) {
+  return (
+    <section className="panel dataset-library">
+      <div className="panel__heading">
+        <div>
+          <span className="eyebrow">Dataset layer</span>
+          <h2>NILM dataset library</h2>
+        </div>
+        <StatusPill>{datasets.length} datasets</StatusPill>
+      </div>
+      <p className="muted">{storageNote}</p>
+      <div className="dataset-grid">
+        {datasets.map((dataset) => (
+          <article
+            className={`dataset-card ${dataset.id === selectedDataset ? "is-selected" : ""}`}
+            key={dataset.id}
+          >
+            <div className="dataset-card__heading">
+              <div>
+                <span className="eyebrow">{dataset.status}</span>
+                <h3>{dataset.label}</h3>
+              </div>
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => onSelectDataset(dataset.id)}
+              >
+                Use
+              </button>
+            </div>
+            <p>{dataset.description}</p>
+            <dl className="dataset-stats">
+              <div>
+                <dt>Homes</dt>
+                <dd>{dataset.houses}</dd>
+              </div>
+              <div>
+                <dt>Appliances</dt>
+                <dd>{dataset.appliances.length}</dd>
+              </div>
+              <div>
+                <dt>Period</dt>
+                <dd>{dataset.sample_period}</dd>
+              </div>
+            </dl>
+            <div className="dataset-paths">
+              <DatasetAvailability
+                available={dataset.raw_available}
+                icon={<HardDrive size={15} />}
+                label="Raw"
+                path={dataset.raw_path}
+              />
+              <DatasetAvailability
+                available={dataset.processed_available}
+                icon={<Database size={15} />}
+                label="Processed"
+                path={dataset.processed_path}
+              />
+              <DatasetAvailability
+                available={dataset.sample_available}
+                icon={<Waves size={15} />}
+                label="Sample"
+                path={dataset.sample_path ?? "not bundled"}
+              />
+            </div>
+            <p className="dataset-scale">{dataset.estimated_scale}</p>
+            <ol className="dataset-actions">
+              {dataset.actions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ol>
+          </article>
+        ))}
+      </div>
+      <p className="muted">{ingestionNote}</p>
+    </section>
+  );
+}
+
+function DatasetAvailability({
+  available,
+  icon,
+  label,
+  path,
+}: {
+  available: boolean;
+  icon: ReactNode;
+  label: string;
+  path: string;
+}) {
+  return (
+    <div className="dataset-availability">
+      <span className={available ? "is-ready" : "is-missing"}>{icon}</span>
+      <div>
+        <strong>{label}</strong>
+        <small>{path}</small>
+      </div>
+      <StatusPill tone={available ? "success" : "warning"}>
+        {available ? "ready" : "missing"}
+      </StatusPill>
     </div>
   );
 }

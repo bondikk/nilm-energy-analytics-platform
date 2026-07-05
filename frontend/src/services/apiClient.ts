@@ -7,6 +7,7 @@ import type {
   EnergySummaryRead,
   HomeRead,
   NILMLabCatalogRead,
+  NILMLabDatasetsRead,
   NILMLabDemoRead,
   NILMLabReportRead,
   TokenResponse,
@@ -108,6 +109,9 @@ export const apiClient = {
   },
   nilmCatalog() {
     return request<NILMLabCatalogRead>("/nilm/lab/catalog");
+  },
+  nilmDatasets() {
+    return request<NILMLabDatasetsRead>("/nilm/lab/datasets");
   },
   nilmDemo(dataset: string, houseId: string, appliance: string) {
     return request<NILMLabDemoRead>("/nilm/lab/demo", {

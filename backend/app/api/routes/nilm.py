@@ -16,11 +16,13 @@ from app.ml.datasets.lab_demo import (
     LAB_APPLIANCE_NOMINAL_POWER_W,
     LAB_DATASET_DESCRIPTIONS,
     LAB_DATASET_LABELS,
+    LAB_DATASET_METADATA,
     PROJECT_LAB_SAMPLE_PATH,
     SUPPORTED_LAB_APPLIANCES,
     SUPPORTED_LAB_DATASETS,
     SUPPORTED_LAB_HOUSES,
     build_lab_demo_rows,
+    project_path_exists,
 )
 from app.ml.evaluation.reports import build_evaluation_report
 from app.ml.models.baseline_threshold import (
@@ -32,7 +34,9 @@ from app.schemas.nilm import (
     NILMAnalysisRead,
     NILMLabApplianceRead,
     NILMLabCatalogRead,
+    NILMLabDatasetInventoryItemRead,
     NILMLabDatasetRead,
+    NILMLabDatasetsRead,
     NILMLabDemoRead,
     NILMLabHouseRead,
     NILMLabMetricsRead,
@@ -289,4 +293,42 @@ async def get_nilm_lab_catalog() -> NILMLabCatalogRead:
                 status="baseline",
             )
         ],
+    )
+
+
+@lab_router.get("/datasets", response_model=NILMLabDatasetsRead)
+async def get_nilm_lab_datasets() -> NILMLabDatasetsRead:
+    return NILMLabDatasetsRead(
+        datasets=[
+            NILMLabDatasetInventoryItemRead(
+                id=dataset,
+                label=LAB_DATASET_LABELS[dataset],
+                description=LAB_DATASET_DESCRIPTIONS[dataset],
+                scope=metadata["scope"],
+                houses=metadata["houses"],
+                appliances=list(metadata["appliances"]),
+                sample_period=metadata["sample_period"],
+                estimated_scale=metadata["estimated_scale"],
+                public_reference=metadata["public_reference"],
+                raw_path=metadata["raw_path"],
+                processed_path=metadata["processed_path"],
+                sample_path=metadata["sample_path"] or None,
+                status=metadata["status"],
+                raw_available=project_path_exists(metadata["raw_path"]),
+                processed_available=project_path_exists(metadata["processed_path"]),
+                sample_available=(
+                    dataset == "uk-dale" or project_path_exists(metadata["sample_path"])
+                ),
+                actions=list(metadata["actions"]),
+            )
+            for dataset, metadata in LAB_DATASET_METADATA.items()
+        ],
+        storage_note=(
+            "Full public NILM datasets are intentionally stored under data/raw/ "
+            "and are not committed to git. The repository only keeps small samples."
+        ),
+        ingestion_note=(
+            "Convert raw houses into the unified CSV schema under data/processed/ "
+            "before training or evaluating larger experiments."
+        ),
     )

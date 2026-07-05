@@ -604,6 +604,135 @@ kbd {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.dataset-library {
+  display: grid;
+  gap: 14px;
+}
+
+.dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dataset-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 13, 22, 0.42);
+  padding: 16px;
+}
+
+.dataset-card.is-selected {
+  border-color: rgba(34, 197, 94, 0.46);
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.16);
+}
+
+.dataset-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dataset-card h3 {
+  margin: 3px 0 0;
+  font-size: 22px;
+}
+
+.dataset-card p,
+.dataset-card li {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.dataset-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.dataset-stats div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.46);
+  padding: 10px;
+}
+
+.dataset-stats div:last-child {
+  grid-column: 1 / -1;
+}
+
+.dataset-stats dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.dataset-stats dd {
+  margin: 5px 0 0;
+}
+
+.dataset-paths {
+  display: grid;
+  gap: 8px;
+}
+
+.dataset-availability {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.34);
+  padding: 9px;
+}
+
+.dataset-availability > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.dataset-availability .is-ready {
+  background: rgba(34, 197, 94, 0.13);
+  color: var(--green);
+}
+
+.dataset-availability .is-missing {
+  background: rgba(245, 158, 11, 0.13);
+  color: var(--amber);
+}
+
+.dataset-availability strong,
+.dataset-availability small {
+  display: block;
+}
+
+.dataset-availability small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dataset-scale {
+  border-left: 3px solid rgba(96, 165, 250, 0.45);
+  padding-left: 10px;
+}
+
+.dataset-actions {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 20px;
+}
+
 .definition-list {
   display: grid;
   gap: 12px;
@@ -800,6 +929,7 @@ kbd {
   .dashboard-shell,
   .landing-hero,
   .auth-panel,
+  .dataset-grid,
   .model-grid {
     grid-template-columns: 1fr;
   }

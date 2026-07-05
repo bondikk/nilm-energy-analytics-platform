@@ -55,6 +55,7 @@ def test_frontend_api_client_points_to_local_backend() -> None:
     assert "/demo/live-metric" in api_client
     assert "/nilm/lab/demo" in api_client
     assert "/nilm/lab/catalog" in api_client
+    assert "/nilm/lab/datasets" in api_client
     assert "/nilm/lab/report" in api_client
     assert "new WebSocket" in websocket_client
     assert "/metrics/live" in websocket_client
@@ -78,8 +79,11 @@ def test_frontend_nilm_lab_has_prediction_overlay_chart() -> None:
     )
 
     assert "apiClient.nilmCatalog" in nilm_page
+    assert "apiClient.nilmDatasets" in nilm_page
     assert "apiClient.nilmDemo" in nilm_page
     assert "apiClient.nilmReport" in nilm_page
+    assert "DatasetLibraryPanel" in nilm_page
+    assert "NILM dataset library" in nilm_page
     assert "NilmOverlayChart" in nilm_page
     assert "toggleSeries" in nilm_page
     assert "Prediction points" in nilm_page
