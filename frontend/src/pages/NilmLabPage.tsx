@@ -1,7 +1,10 @@
 import {
   Activity,
+  BarChart3,
   Database,
   Download,
+  FileText,
+  FolderOpen,
   Gauge,
   HardDrive,
   Microscope,
@@ -26,11 +29,22 @@ import {
 import { formatEnergyWh, formatMetric, formatWatts } from "../features/nilm/nilmFormat";
 import { apiClient } from "../services/apiClient";
 import type {
+  NILMLabApplianceRead,
   NILMLabCatalogRead,
+  NILMLabDatasetFileRead,
   NILMLabDatasetInventoryItemRead,
   NILMLabDatasetsRead,
   NILMLabDemoRead,
+  NILMLabModelRead,
 } from "../types/api";
+
+type LabMode = "datasets" | "analysis" | "prediction";
+
+const LAB_MODES: Array<{ id: LabMode; label: string; icon: ReactNode }> = [
+  { id: "datasets", label: "Datasets", icon: <FolderOpen size={16} /> },
+  { id: "analysis", label: "Analysis", icon: <BarChart3 size={16} /> },
+  { id: "prediction", label: "Prediction", icon: <Activity size={16} /> },
+];
 
 export function NilmLabPage() {
   const [catalog, setCatalog] = useState<NILMLabCatalogRead | null>(null);
@@ -39,6 +53,7 @@ export function NilmLabPage() {
   const [dataset, setDataset] = useState("uk-dale");
   const [houseId, setHouseId] = useState("house-1");
   const [appliance, setAppliance] = useState("kettle");
+  const [activeMode, setActiveMode] = useState<LabMode>("datasets");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
@@ -103,8 +118,9 @@ export function NilmLabPage() {
     };
   }, [appliance, catalog, dataset, houseId]);
 
-  const selectedModel = catalog?.models[0];
-  const selectedAppliance = catalog?.appliances.find((item) => item.id === appliance);
+  const selectedDataset = datasetLibrary?.datasets.find((item) => item.id === dataset) ?? null;
+  const selectedModel = catalog?.models[0] ?? null;
+  const selectedAppliance = catalog?.appliances.find((item) => item.id === appliance) ?? null;
   const chartPoints = useMemo(() => buildNilmChartPoints(demo?.points ?? []), [demo]);
   const experimentSummary = useMemo(
     () => (demo ? summarizeNilmExperiment(demo) : null),
@@ -159,14 +175,19 @@ export function NilmLabPage() {
     <div className="page-stack">
       <section className="nilm-header">
         <div>
-          <span className="eyebrow">Sequence-to-point baseline surface</span>
-          <h2>NILM prediction overlay lab</h2>
+          <span className="eyebrow">Dataset-backed research workspace</span>
+          <h2>NILM Lab</h2>
           <p>
-            Compare aggregate power, appliance ground truth, and baseline prediction from the
-            unified NILM sample.
+            Open public NILM datasets, inspect local files, check pipeline readiness, and compare
+            appliance-level predictions against ground truth.
           </p>
         </div>
-        <button className="button button--secondary" disabled={reportBusy} onClick={downloadReport} type="button">
+        <button
+          className="button button--secondary"
+          disabled={reportBusy}
+          onClick={downloadReport}
+          type="button"
+        >
           <Download size={16} />
           {reportBusy ? "Preparing..." : "Report"}
         </button>
@@ -205,7 +226,21 @@ export function NilmLabPage() {
         </label>
       </section>
 
-      {datasetLibrary ? (
+      <section className="lab-tabs" aria-label="NILM Lab workflow">
+        {LAB_MODES.map((mode) => (
+          <button
+            className={`lab-tab ${activeMode === mode.id ? "is-active" : ""}`}
+            key={mode.id}
+            type="button"
+            onClick={() => setActiveMode(mode.id)}
+          >
+            {mode.icon}
+            {mode.label}
+          </button>
+        ))}
+      </section>
+
+      {activeMode === "datasets" && datasetLibrary ? (
         <DatasetLibraryPanel
           datasets={datasetLibrary.datasets}
           ingestionNote={datasetLibrary.ingestion_note}
@@ -215,6 +250,305 @@ export function NilmLabPage() {
         />
       ) : null}
 
+      {activeMode === "analysis" && selectedDataset ? (
+        <DatasetAnalysisPanel
+          appliance={selectedAppliance}
+          dataset={selectedDataset}
+          demo={demo}
+          houseId={houseId}
+        />
+      ) : null}
+
+      {activeMode === "prediction" ? (
+        <PredictionWorkspace
+          chartPoints={chartPoints}
+          demo={demo}
+          experimentSummary={experimentSummary}
+          maxAggregate={maxAggregate}
+          selectedAppliance={selectedAppliance}
+          selectedModel={selectedModel}
+          visibility={visibility}
+          onToggleSeries={toggleSeries}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DatasetLibraryPanel({
+  datasets,
+  ingestionNote,
+  selectedDataset,
+  storageNote,
+  onSelectDataset,
+}: {
+  datasets: NILMLabDatasetInventoryItemRead[];
+  ingestionNote: string;
+  selectedDataset: string;
+  storageNote: string;
+  onSelectDataset: (dataset: string) => void;
+}) {
+  const selected = datasets.find((dataset) => dataset.id === selectedDataset) ?? datasets[0];
+
+  return (
+    <section className="panel dataset-library">
+      <div className="panel__heading">
+        <div>
+          <span className="eyebrow">Dataset explorer</span>
+          <h2>NILM dataset library</h2>
+        </div>
+        <StatusPill>{datasets.length} datasets</StatusPill>
+      </div>
+      <p className="muted">{storageNote}</p>
+
+      <div className="dataset-explorer-grid">
+        <div className="dataset-picker-list" aria-label="Available NILM datasets">
+          {datasets.map((dataset) => (
+            <button
+              className={`dataset-picker-card ${
+                dataset.id === selectedDataset ? "is-selected" : ""
+              }`}
+              key={dataset.id}
+              type="button"
+              onClick={() => onSelectDataset(dataset.id)}
+            >
+              <span>
+                <strong>{dataset.label}</strong>
+                <small>{dataset.status}</small>
+              </span>
+              <DatasetReadiness dataset={dataset} />
+            </button>
+          ))}
+        </div>
+
+        <article className="dataset-detail-panel">
+          <div className="dataset-detail-panel__heading">
+            <div>
+              <span className="eyebrow">{selected.status}</span>
+              <h3>{selected.label}</h3>
+            </div>
+            <a className="button button--secondary" href={selected.public_reference} rel="noreferrer" target="_blank">
+              <FileText size={16} />
+              Source
+            </a>
+          </div>
+          <p>{selected.description}</p>
+
+          <div className="dataset-summary-strip">
+            <DatasetAvailability
+              available={selected.raw_available}
+              detail={`${selected.raw_file_count} files · ${formatBytes(selected.raw_total_bytes)}`}
+              icon={<HardDrive size={15} />}
+              label="Raw files"
+              path={selected.raw_path}
+            />
+            <DatasetAvailability
+              available={selected.processed_available}
+              detail={`${selected.processed_file_count} files · ${formatBytes(
+                selected.processed_total_bytes,
+              )}`}
+              icon={<Database size={15} />}
+              label="Processed CSV"
+              path={selected.processed_path}
+            />
+            <DatasetAvailability
+              available={selected.sample_available}
+              detail={selected.sample_available ? "usable in prediction demo" : "not bundled"}
+              icon={<Waves size={15} />}
+              label="Sample"
+              path={selected.sample_path ?? "not bundled"}
+            />
+          </div>
+
+          <dl className="dataset-stats dataset-stats--wide">
+            <div>
+              <dt>Homes</dt>
+              <dd>{selected.houses}</dd>
+            </div>
+            <div>
+              <dt>Appliances</dt>
+              <dd>{selected.appliances.join(", ")}</dd>
+            </div>
+            <div>
+              <dt>Sampling</dt>
+              <dd>{selected.sample_period}</dd>
+            </div>
+            <div>
+              <dt>Scale</dt>
+              <dd>{selected.estimated_scale}</dd>
+            </div>
+          </dl>
+
+          <div className="dataset-file-grid">
+            <DatasetFileTable
+              emptyMessage="Raw files are not connected in data/raw yet."
+              files={selected.raw_files}
+              title="Raw file inventory"
+            />
+            <DatasetFileTable
+              emptyMessage="No unified processed CSV has been generated yet."
+              files={selected.processed_files}
+              title="Processed file inventory"
+            />
+          </div>
+
+          <div className="dataset-next-actions">
+            <span className="eyebrow">Next analysis steps</span>
+            <ol className="dataset-actions">
+              {selected.actions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ol>
+          </div>
+        </article>
+      </div>
+      <p className="muted">{ingestionNote}</p>
+    </section>
+  );
+}
+
+function DatasetAnalysisPanel({
+  appliance,
+  dataset,
+  demo,
+  houseId,
+}: {
+  appliance: NILMLabApplianceRead | null;
+  dataset: NILMLabDatasetInventoryItemRead;
+  demo: NILMLabDemoRead;
+  houseId: string;
+}) {
+  const pipelineSteps = [
+    {
+      label: "Raw dataset connected",
+      ready: dataset.raw_available,
+      detail: `${dataset.raw_file_count} files in ${dataset.raw_path}`,
+    },
+    {
+      label: "Unified processed CSV",
+      ready: dataset.processed_available,
+      detail: dataset.processed_available
+        ? dataset.processed_path
+        : "Convert raw data before full training/evaluation.",
+    },
+    {
+      label: "Sample experiment available",
+      ready: dataset.sample_available,
+      detail: dataset.sample_path ?? "No packaged sample for this dataset yet.",
+    },
+    {
+      label: "Baseline prediction loaded",
+      ready: demo.sample_count > 0,
+      detail: `${demo.sample_count} samples for ${demo.appliance_label}`,
+    },
+  ];
+
+  return (
+    <>
+      <section className="metric-grid">
+        <MetricCard
+          detail={`${dataset.raw_file_count} discovered files`}
+          icon={<HardDrive size={18} />}
+          label="Raw storage"
+          tone={dataset.raw_available ? "green" : "amber"}
+          value={formatBytes(dataset.raw_total_bytes)}
+        />
+        <MetricCard
+          detail={dataset.processed_path}
+          icon={<Database size={18} />}
+          label="Processed schema"
+          tone={dataset.processed_available ? "green" : "amber"}
+          value={dataset.processed_available ? "Ready" : "Missing"}
+        />
+        <MetricCard
+          detail={`${houseId.replace("-", " ")} · ${appliance?.label ?? demo.appliance_label}`}
+          icon={<Microscope size={18} />}
+          label="Experiment target"
+          tone="blue"
+          value={demo.dataset_label}
+        />
+        <MetricCard
+          detail={`On threshold ${formatWatts(demo.on_threshold_w)}`}
+          icon={<Target size={18} />}
+          label="Baseline samples"
+          value={String(demo.sample_count)}
+        />
+      </section>
+
+      <section className="analysis-grid">
+        <article className="panel">
+          <div className="panel__heading">
+            <div>
+              <span className="eyebrow">Dataset analysis</span>
+              <h2>{dataset.label} readiness</h2>
+            </div>
+            <DatasetReadiness dataset={dataset} />
+          </div>
+          <div className="pipeline-list">
+            {pipelineSteps.map((step) => (
+              <div className={`pipeline-step ${step.ready ? "is-ready" : "is-missing"}`} key={step.label}>
+                <span>{step.ready ? "Ready" : "Missing"}</span>
+                <div>
+                  <strong>{step.label}</strong>
+                  <small>{step.detail}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel__heading">
+            <div>
+              <span className="eyebrow">What happens here</span>
+              <h2>Analysis workflow</h2>
+            </div>
+          </div>
+          <dl className="definition-list">
+            <div>
+              <dt>Input signal</dt>
+              <dd>Aggregate whole-home active power from the selected public NILM dataset.</dd>
+            </div>
+            <div>
+              <dt>Ground truth</dt>
+              <dd>Appliance-level channels such as kettle, fridge, washing machine, and dishwasher.</dd>
+            </div>
+            <div>
+              <dt>Current method</dt>
+              <dd>Baseline step-change disaggregation, evaluated with MAE, precision, recall, and F1.</dd>
+            </div>
+            <div>
+              <dt>Next upgrade</dt>
+              <dd>Convert larger houses to the unified CSV schema, then train ML and Seq2Point models.</dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+    </>
+  );
+}
+
+function PredictionWorkspace({
+  chartPoints,
+  demo,
+  experimentSummary,
+  maxAggregate,
+  selectedAppliance,
+  selectedModel,
+  visibility,
+  onToggleSeries,
+}: {
+  chartPoints: ReturnType<typeof buildNilmChartPoints>;
+  demo: NILMLabDemoRead;
+  experimentSummary: ReturnType<typeof summarizeNilmExperiment> | null;
+  maxAggregate: number;
+  selectedAppliance: NILMLabApplianceRead | null;
+  selectedModel: NILMLabModelRead | null;
+  visibility: NilmOverlayVisibility;
+  onToggleSeries: (series: keyof NilmOverlayVisibility) => void;
+}) {
+  return (
+    <>
       <section className="metric-grid">
         <MetricCard
           detail="Mean absolute error"
@@ -278,7 +612,9 @@ export function NilmLabPage() {
       <section className="panel">
         <div className="panel__heading">
           <div>
-            <span className="eyebrow">{demo.dataset_label} · {demo.house_id}</span>
+            <span className="eyebrow">
+              {demo.dataset_label} · {demo.house_id}
+            </span>
             <h2>{demo.appliance_label} prediction overlay</h2>
           </div>
           <StatusPill tone="success">{demo.model_name}</StatusPill>
@@ -296,7 +632,7 @@ export function NilmLabPage() {
               }`}
               key={series}
               type="button"
-              onClick={() => toggleSeries(series as keyof NilmOverlayVisibility)}
+              onClick={() => onToggleSeries(series as keyof NilmOverlayVisibility)}
             >
               {label}
             </button>
@@ -383,108 +719,19 @@ export function NilmLabPage() {
           </table>
         </div>
       </section>
-    </div>
-  );
-}
-
-function DatasetLibraryPanel({
-  datasets,
-  ingestionNote,
-  selectedDataset,
-  storageNote,
-  onSelectDataset,
-}: {
-  datasets: NILMLabDatasetInventoryItemRead[];
-  ingestionNote: string;
-  selectedDataset: string;
-  storageNote: string;
-  onSelectDataset: (dataset: string) => void;
-}) {
-  return (
-    <section className="panel dataset-library">
-      <div className="panel__heading">
-        <div>
-          <span className="eyebrow">Dataset layer</span>
-          <h2>NILM dataset library</h2>
-        </div>
-        <StatusPill>{datasets.length} datasets</StatusPill>
-      </div>
-      <p className="muted">{storageNote}</p>
-      <div className="dataset-grid">
-        {datasets.map((dataset) => (
-          <article
-            className={`dataset-card ${dataset.id === selectedDataset ? "is-selected" : ""}`}
-            key={dataset.id}
-          >
-            <div className="dataset-card__heading">
-              <div>
-                <span className="eyebrow">{dataset.status}</span>
-                <h3>{dataset.label}</h3>
-              </div>
-              <button
-                className="button button--secondary"
-                type="button"
-                onClick={() => onSelectDataset(dataset.id)}
-              >
-                Use
-              </button>
-            </div>
-            <p>{dataset.description}</p>
-            <dl className="dataset-stats">
-              <div>
-                <dt>Homes</dt>
-                <dd>{dataset.houses}</dd>
-              </div>
-              <div>
-                <dt>Appliances</dt>
-                <dd>{dataset.appliances.length}</dd>
-              </div>
-              <div>
-                <dt>Period</dt>
-                <dd>{dataset.sample_period}</dd>
-              </div>
-            </dl>
-            <div className="dataset-paths">
-              <DatasetAvailability
-                available={dataset.raw_available}
-                icon={<HardDrive size={15} />}
-                label="Raw"
-                path={dataset.raw_path}
-              />
-              <DatasetAvailability
-                available={dataset.processed_available}
-                icon={<Database size={15} />}
-                label="Processed"
-                path={dataset.processed_path}
-              />
-              <DatasetAvailability
-                available={dataset.sample_available}
-                icon={<Waves size={15} />}
-                label="Sample"
-                path={dataset.sample_path ?? "not bundled"}
-              />
-            </div>
-            <p className="dataset-scale">{dataset.estimated_scale}</p>
-            <ol className="dataset-actions">
-              {dataset.actions.map((action) => (
-                <li key={action}>{action}</li>
-              ))}
-            </ol>
-          </article>
-        ))}
-      </div>
-      <p className="muted">{ingestionNote}</p>
-    </section>
+    </>
   );
 }
 
 function DatasetAvailability({
   available,
+  detail,
   icon,
   label,
   path,
 }: {
   available: boolean;
+  detail: string;
   icon: ReactNode;
   label: string;
   path: string;
@@ -495,10 +742,93 @@ function DatasetAvailability({
       <div>
         <strong>{label}</strong>
         <small>{path}</small>
+        <small>{detail}</small>
       </div>
       <StatusPill tone={available ? "success" : "warning"}>
         {available ? "ready" : "missing"}
       </StatusPill>
     </div>
   );
+}
+
+function DatasetFileTable({
+  emptyMessage,
+  files,
+  title,
+}: {
+  emptyMessage: string;
+  files: NILMLabDatasetFileRead[];
+  title: string;
+}) {
+  return (
+    <div className="dataset-file-panel">
+      <div className="dataset-file-panel__heading">
+        <span className="eyebrow">{title}</span>
+        <StatusPill>{files.length} shown</StatusPill>
+      </div>
+      {files.length > 0 ? (
+        <div className="table-wrap">
+          <table className="data-table data-table--compact">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Kind</th>
+                <th>Size</th>
+                <th>Path</th>
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((file) => (
+                <tr key={file.path}>
+                  <td>{file.name}</td>
+                  <td>{file.is_symlink ? `${file.kind} link` : file.kind}</td>
+                  <td>{formatBytes(file.size_bytes)}</td>
+                  <td>{file.path}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="dataset-empty-row">{emptyMessage}</div>
+      )}
+    </div>
+  );
+}
+
+function DatasetReadiness({ dataset }: { dataset: NILMLabDatasetInventoryItemRead }) {
+  if (dataset.processed_available) {
+    return <StatusPill tone="success">analysis ready</StatusPill>;
+  }
+  if (dataset.raw_available) {
+    return <StatusPill tone="warning">raw connected</StatusPill>;
+  }
+  if (dataset.sample_available) {
+    return <StatusPill>sample only</StatusPill>;
+  }
+  return <StatusPill tone="danger">missing raw</StatusPill>;
+}
+
+function formatBytes(value: number | null) {
+  if (value === null) {
+    return "unknown";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let size = value;
+  let unit = "B";
+  for (const nextUnit of units) {
+    size /= 1024;
+    unit = nextUnit;
+    if (size < 1024) {
+      break;
+    }
+  }
+
+  return `${size.toLocaleString(undefined, {
+    maximumFractionDigits: size >= 10 ? 1 : 2,
+  })} ${unit}`;
 }

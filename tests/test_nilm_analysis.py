@@ -169,6 +169,10 @@ async def test_nilm_lab_datasets_describes_scale_and_local_availability() -> Non
     assert uk_dale.raw_path == "data/raw/uk-dale/"
     assert uk_dale.processed_path == "data/processed/uk_dale_house_1.csv"
     assert uk_dale.status == "first-class target"
+    assert isinstance(uk_dale.raw_file_count, int)
+    assert uk_dale.raw_total_bytes is None or uk_dale.raw_total_bytes >= 0
+    assert isinstance(uk_dale.raw_files, list)
+    assert isinstance(uk_dale.processed_files, list)
 
     refit = inventory.datasets[2]
     assert refit.houses == 20

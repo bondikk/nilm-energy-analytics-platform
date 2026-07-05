@@ -37,6 +37,14 @@ class LabDatasetMetadata(TypedDict):
     actions: tuple[str, ...]
 
 
+class ProjectDatasetFile(TypedDict):
+    name: str
+    path: str
+    kind: str
+    size_bytes: int | None
+    is_symlink: bool
+
+
 LAB_DATASET_METADATA: dict[str, LabDatasetMetadata] = {
     "uk-dale": {
         "scope": "5 monitored UK homes with whole-house and appliance-level demand.",
@@ -153,3 +161,82 @@ def project_path_has_data(relative_path: str) -> bool:
         child.name != ".gitkeep" and (child.is_file() or child.is_symlink())
         for child in path.iterdir()
     )
+
+
+def _path_relative_to_project(path: Path) -> str:
+    for root in PROJECT_ROOT_CANDIDATES:
+        try:
+            return path.relative_to(root).as_posix()
+        except ValueError:
+            continue
+    return path.as_posix()
+
+
+def _file_size_bytes(path: Path) -> int | None:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return None
+
+
+def _file_kind(path: Path) -> str:
+    suffix = path.suffix.lower().lstrip(".")
+    return suffix or "file"
+
+
+def project_file_inventory(
+    relative_path: str,
+    *,
+    limit: int = 40,
+) -> tuple[tuple[ProjectDatasetFile, ...], int, int | None]:
+    if not relative_path:
+        return (), 0, None
+
+    path = resolve_project_path(relative_path)
+    if not (path.exists() or path.is_symlink()):
+        return (), 0, None
+
+    if path.is_file() or path.is_symlink():
+        size_bytes = _file_size_bytes(path)
+        return (
+            (
+                ProjectDatasetFile(
+                    name=path.name,
+                    path=_path_relative_to_project(path),
+                    kind=_file_kind(path),
+                    size_bytes=size_bytes,
+                    is_symlink=path.is_symlink(),
+                ),
+            ),
+            1,
+            size_bytes,
+        )
+
+    visible_files: list[ProjectDatasetFile] = []
+    total_count = 0
+    total_size = 0
+    has_unknown_size = False
+
+    for child in sorted(path.rglob("*")):
+        if child.name == ".gitkeep" or not (child.is_file() or child.is_symlink()):
+            continue
+
+        total_count += 1
+        size_bytes = _file_size_bytes(child)
+        if size_bytes is None:
+            has_unknown_size = True
+        else:
+            total_size += size_bytes
+
+        if len(visible_files) < limit:
+            visible_files.append(
+                ProjectDatasetFile(
+                    name=child.name,
+                    path=_path_relative_to_project(child),
+                    kind=_file_kind(child),
+                    size_bytes=size_bytes,
+                    is_symlink=child.is_symlink(),
+                )
+            )
+
+    return tuple(visible_files), total_count, None if has_unknown_size else total_size

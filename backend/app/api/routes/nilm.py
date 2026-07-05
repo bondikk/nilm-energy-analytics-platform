@@ -17,11 +17,13 @@ from app.ml.datasets.lab_demo import (
     LAB_DATASET_DESCRIPTIONS,
     LAB_DATASET_LABELS,
     LAB_DATASET_METADATA,
+    LabDatasetMetadata,
     PROJECT_LAB_SAMPLE_PATH,
     SUPPORTED_LAB_APPLIANCES,
     SUPPORTED_LAB_DATASETS,
     SUPPORTED_LAB_HOUSES,
     build_lab_demo_rows,
+    project_file_inventory,
     project_path_has_data,
     project_path_exists,
 )
@@ -35,6 +37,7 @@ from app.schemas.nilm import (
     NILMAnalysisRead,
     NILMLabApplianceRead,
     NILMLabCatalogRead,
+    NILMLabDatasetFileRead,
     NILMLabDatasetInventoryItemRead,
     NILMLabDatasetRead,
     NILMLabDatasetsRead,
@@ -301,27 +304,7 @@ async def get_nilm_lab_catalog() -> NILMLabCatalogRead:
 async def get_nilm_lab_datasets() -> NILMLabDatasetsRead:
     return NILMLabDatasetsRead(
         datasets=[
-            NILMLabDatasetInventoryItemRead(
-                id=dataset,
-                label=LAB_DATASET_LABELS[dataset],
-                description=LAB_DATASET_DESCRIPTIONS[dataset],
-                scope=metadata["scope"],
-                houses=metadata["houses"],
-                appliances=list(metadata["appliances"]),
-                sample_period=metadata["sample_period"],
-                estimated_scale=metadata["estimated_scale"],
-                public_reference=metadata["public_reference"],
-                raw_path=metadata["raw_path"],
-                processed_path=metadata["processed_path"],
-                sample_path=metadata["sample_path"] or None,
-                status=metadata["status"],
-                raw_available=project_path_has_data(metadata["raw_path"]),
-                processed_available=project_path_exists(metadata["processed_path"]),
-                sample_available=(
-                    dataset == "uk-dale" or project_path_exists(metadata["sample_path"])
-                ),
-                actions=list(metadata["actions"]),
-            )
+            _build_dataset_inventory_item(dataset, metadata)
             for dataset, metadata in LAB_DATASET_METADATA.items()
         ],
         storage_note=(
@@ -332,4 +315,40 @@ async def get_nilm_lab_datasets() -> NILMLabDatasetsRead:
             "Convert raw houses into the unified CSV schema under data/processed/ "
             "before training or evaluating larger experiments."
         ),
+    )
+
+
+def _build_dataset_inventory_item(
+    dataset: str,
+    metadata: LabDatasetMetadata,
+) -> NILMLabDatasetInventoryItemRead:
+    raw_files, raw_file_count, raw_total_bytes = project_file_inventory(metadata["raw_path"])
+    processed_files, processed_file_count, processed_total_bytes = project_file_inventory(
+        metadata["processed_path"]
+    )
+
+    return NILMLabDatasetInventoryItemRead(
+        id=dataset,
+        label=LAB_DATASET_LABELS[dataset],
+        description=LAB_DATASET_DESCRIPTIONS[dataset],
+        scope=metadata["scope"],
+        houses=metadata["houses"],
+        appliances=list(metadata["appliances"]),
+        sample_period=metadata["sample_period"],
+        estimated_scale=metadata["estimated_scale"],
+        public_reference=metadata["public_reference"],
+        raw_path=metadata["raw_path"],
+        processed_path=metadata["processed_path"],
+        sample_path=metadata["sample_path"] or None,
+        status=metadata["status"],
+        raw_available=project_path_has_data(metadata["raw_path"]),
+        processed_available=project_path_exists(metadata["processed_path"]),
+        sample_available=(dataset == "uk-dale" or project_path_exists(metadata["sample_path"])),
+        raw_file_count=raw_file_count,
+        raw_total_bytes=raw_total_bytes,
+        processed_file_count=processed_file_count,
+        processed_total_bytes=processed_total_bytes,
+        raw_files=[NILMLabDatasetFileRead(**file) for file in raw_files],
+        processed_files=[NILMLabDatasetFileRead(**file) for file in processed_files],
+        actions=list(metadata["actions"]),
     )

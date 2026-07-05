@@ -131,6 +131,14 @@ class NILMLabDatasetRead(BaseModel):
     description: str
 
 
+class NILMLabDatasetFileRead(BaseModel):
+    name: str
+    path: str
+    kind: str
+    size_bytes: int | None
+    is_symlink: bool
+
+
 class NILMLabDatasetInventoryItemRead(BaseModel):
     id: str
     label: str
@@ -148,6 +156,12 @@ class NILMLabDatasetInventoryItemRead(BaseModel):
     raw_available: bool
     processed_available: bool
     sample_available: bool
+    raw_file_count: int
+    raw_total_bytes: int | None
+    processed_file_count: int
+    processed_total_bytes: int | None
+    raw_files: list[NILMLabDatasetFileRead]
+    processed_files: list[NILMLabDatasetFileRead]
     actions: list[str]
 
 

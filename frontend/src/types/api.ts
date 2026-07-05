@@ -116,26 +116,38 @@ export interface NILMLabDemoRead {
   points: NILMLabPointRead[];
 }
 
+export interface NILMLabApplianceRead {
+  id: string;
+  label: string;
+  on_threshold_w: number;
+  nominal_power_w: number;
+}
+
+export interface NILMLabModelRead {
+  id: string;
+  label: string;
+  task: string;
+  input_signal: string;
+  output_signal: string;
+  status: string;
+}
+
 export interface NILMLabCatalogRead {
   default_dataset: string;
   default_house_id: string;
   default_appliance: string;
   datasets: Array<{ id: string; label: string; description: string }>;
   houses: Array<{ id: string; label: string }>;
-  appliances: Array<{
-    id: string;
-    label: string;
-    on_threshold_w: number;
-    nominal_power_w: number;
-  }>;
-  models: Array<{
-    id: string;
-    label: string;
-    task: string;
-    input_signal: string;
-    output_signal: string;
-    status: string;
-  }>;
+  appliances: NILMLabApplianceRead[];
+  models: NILMLabModelRead[];
+}
+
+export interface NILMLabDatasetFileRead {
+  name: string;
+  path: string;
+  kind: string;
+  size_bytes: number | null;
+  is_symlink: boolean;
 }
 
 export interface NILMLabDatasetInventoryItemRead {
@@ -155,6 +167,12 @@ export interface NILMLabDatasetInventoryItemRead {
   raw_available: boolean;
   processed_available: boolean;
   sample_available: boolean;
+  raw_file_count: number;
+  raw_total_bytes: number | null;
+  processed_file_count: number;
+  processed_total_bytes: number | null;
+  raw_files: NILMLabDatasetFileRead[];
+  processed_files: NILMLabDatasetFileRead[];
   actions: string[];
 }
 

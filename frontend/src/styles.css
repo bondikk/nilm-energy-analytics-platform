@@ -600,6 +600,36 @@ kbd {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.lab-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: min(560px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 13, 22, 0.64);
+  padding: 6px;
+}
+
+.lab-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 820;
+}
+
+.lab-tab.is-active {
+  background: rgba(34, 197, 94, 0.14);
+  color: #dcfce7;
+}
+
 .model-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -613,6 +643,88 @@ kbd {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+.dataset-explorer-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.dataset-picker-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dataset-picker-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 74px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 13, 22, 0.44);
+  color: #eef2ff;
+  cursor: pointer;
+  padding: 12px;
+  text-align: left;
+}
+
+.dataset-picker-card.is-selected {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.09);
+}
+
+.dataset-picker-card span,
+.dataset-picker-card small {
+  display: block;
+}
+
+.dataset-picker-card small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dataset-detail-panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 13, 22, 0.36);
+  padding: 18px;
+}
+
+.dataset-detail-panel__heading,
+.dataset-file-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dataset-detail-panel h3 {
+  margin: 3px 0 0;
+  font-size: 26px;
+}
+
+.dataset-summary-strip,
+.dataset-file-grid,
+.analysis-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.dataset-summary-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dataset-file-grid,
+.analysis-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .dataset-card {
@@ -663,6 +775,14 @@ kbd {
 
 .dataset-stats div:last-child {
   grid-column: 1 / -1;
+}
+
+.dataset-stats--wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dataset-stats--wide div:last-child {
+  grid-column: auto;
 }
 
 .dataset-stats dt {
@@ -733,6 +853,73 @@ kbd {
   padding-left: 20px;
 }
 
+.dataset-next-actions {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.dataset-file-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dataset-empty-row {
+  border: 1px dashed rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 14px;
+}
+
+.pipeline-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pipeline-step {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.36);
+  padding: 12px;
+}
+
+.pipeline-step > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.pipeline-step.is-ready > span {
+  background: rgba(34, 197, 94, 0.14);
+  color: #bbf7d0;
+}
+
+.pipeline-step.is-missing > span {
+  background: rgba(245, 158, 11, 0.13);
+  color: #fde68a;
+}
+
+.pipeline-step strong,
+.pipeline-step small {
+  display: block;
+}
+
+.pipeline-step small {
+  margin-top: 4px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .definition-list {
   display: grid;
   gap: 12px;
@@ -766,6 +953,11 @@ kbd {
   border-collapse: collapse;
   min-width: 680px;
   font-size: 13px;
+}
+
+.data-table--compact {
+  min-width: 560px;
+  font-size: 12px;
 }
 
 .data-table th,
@@ -929,7 +1121,11 @@ kbd {
   .dashboard-shell,
   .landing-hero,
   .auth-panel,
+  .analysis-grid,
+  .dataset-explorer-grid,
+  .dataset-file-grid,
   .dataset-grid,
+  .dataset-summary-strip,
   .model-grid {
     grid-template-columns: 1fr;
   }
@@ -961,6 +1157,7 @@ kbd {
   }
 
   .landing-modules,
+  .lab-tabs,
   .metric-grid,
   .metric-grid--compact,
   .filter-grid,

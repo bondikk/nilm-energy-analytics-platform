@@ -84,6 +84,11 @@ def test_frontend_nilm_lab_has_prediction_overlay_chart() -> None:
     assert "apiClient.nilmReport" in nilm_page
     assert "DatasetLibraryPanel" in nilm_page
     assert "NILM dataset library" in nilm_page
+    assert "Dataset explorer" in nilm_page
+    assert "Analysis workflow" in nilm_page
+    assert "Raw file inventory" in nilm_page
+    assert "Processed file inventory" in nilm_page
+    assert "raw connected" in nilm_page
     assert "NilmOverlayChart" in nilm_page
     assert "toggleSeries" in nilm_page
     assert "Prediction points" in nilm_page
