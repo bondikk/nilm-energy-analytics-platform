@@ -107,7 +107,19 @@ LAB_APPLIANCE_NOMINAL_POWER_W = {
 
 PACKAGED_LAB_SAMPLE_PATH = Path(__file__).resolve().parent / "samples" / "uk_dale_house_1_sample.csv"
 PROJECT_LAB_SAMPLE_PATH = "data/samples/uk_dale_house_1_sample.csv"
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+PROJECT_ROOT_CANDIDATES = (
+    Path.cwd(),
+    Path(__file__).resolve().parents[3],
+    Path(__file__).resolve().parents[4],
+)
+
+
+def resolve_project_path(relative_path: str) -> Path:
+    for root in PROJECT_ROOT_CANDIDATES:
+        candidate = root / relative_path
+        if candidate.exists() or candidate.is_symlink():
+            return candidate
+    return PROJECT_ROOT_CANDIDATES[0] / relative_path
 
 
 def build_lab_demo_rows() -> tuple[UnifiedNILMRow, ...]:
@@ -123,4 +135,21 @@ def build_lab_demo_rows() -> tuple[UnifiedNILMRow, ...]:
 def project_path_exists(relative_path: str) -> bool:
     if not relative_path:
         return False
-    return (PROJECT_ROOT / relative_path).exists()
+    path = resolve_project_path(relative_path)
+    return path.exists() or path.is_symlink()
+
+
+def project_path_has_data(relative_path: str) -> bool:
+    if not relative_path:
+        return False
+
+    path = resolve_project_path(relative_path)
+    if path.is_file():
+        return True
+    if not path.is_dir():
+        return False
+
+    return any(
+        child.name != ".gitkeep" and (child.is_file() or child.is_symlink())
+        for child in path.iterdir()
+    )

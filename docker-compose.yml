@@ -72,6 +72,8 @@ services:
       "
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/app/data:ro
     depends_on:
       timescaledb:
         condition: service_healthy

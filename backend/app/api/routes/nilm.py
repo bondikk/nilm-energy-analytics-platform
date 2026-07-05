@@ -22,6 +22,7 @@ from app.ml.datasets.lab_demo import (
     SUPPORTED_LAB_DATASETS,
     SUPPORTED_LAB_HOUSES,
     build_lab_demo_rows,
+    project_path_has_data,
     project_path_exists,
 )
 from app.ml.evaluation.reports import build_evaluation_report
@@ -314,7 +315,7 @@ async def get_nilm_lab_datasets() -> NILMLabDatasetsRead:
                 processed_path=metadata["processed_path"],
                 sample_path=metadata["sample_path"] or None,
                 status=metadata["status"],
-                raw_available=project_path_exists(metadata["raw_path"]),
+                raw_available=project_path_has_data(metadata["raw_path"]),
                 processed_available=project_path_exists(metadata["processed_path"]),
                 sample_available=(
                     dataset == "uk-dale" or project_path_exists(metadata["sample_path"])
