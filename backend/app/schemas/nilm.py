@@ -171,6 +171,49 @@ class NILMLabDatasetsRead(BaseModel):
     ingestion_note: str
 
 
+class NILMLabDatasetColumnProfileRead(BaseModel):
+    name: str
+    kind: str
+    non_empty_count: int
+    missing_count: int
+    min_value: float | None
+    max_value: float | None
+    mean_value: float | None
+
+
+class NILMLabDatasetStructureNodeRead(BaseModel):
+    path: str
+    kind: str
+    shape: str | None
+    dtype: str | None
+
+
+class NILMLabDatasetFileProfileRead(BaseModel):
+    name: str
+    path: str
+    kind: str
+    size_bytes: int | None
+    status: str
+    row_count: int | None
+    column_count: int | None
+    columns: list[str]
+    preview_rows: list[dict[str, str]]
+    column_profiles: list[NILMLabDatasetColumnProfileRead]
+    start_time: datetime | None
+    end_time: datetime | None
+    structure: list[NILMLabDatasetStructureNodeRead]
+    notes: list[str]
+
+
+class NILMLabDatasetProfileRead(BaseModel):
+    dataset: str
+    dataset_label: str
+    raw_file_count: int
+    profiled_file_count: int
+    total_size_bytes: int | None
+    files: list[NILMLabDatasetFileProfileRead]
+
+
 class NILMLabHouseRead(BaseModel):
     id: str
     label: str

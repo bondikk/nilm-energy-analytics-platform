@@ -182,6 +182,49 @@ export interface NILMLabDatasetsRead {
   ingestion_note: string;
 }
 
+export interface NILMLabDatasetColumnProfileRead {
+  name: string;
+  kind: string;
+  non_empty_count: number;
+  missing_count: number;
+  min_value: number | null;
+  max_value: number | null;
+  mean_value: number | null;
+}
+
+export interface NILMLabDatasetStructureNodeRead {
+  path: string;
+  kind: string;
+  shape: string | null;
+  dtype: string | null;
+}
+
+export interface NILMLabDatasetFileProfileRead {
+  name: string;
+  path: string;
+  kind: string;
+  size_bytes: number | null;
+  status: string;
+  row_count: number | null;
+  column_count: number | null;
+  columns: string[];
+  preview_rows: Array<Record<string, string>>;
+  column_profiles: NILMLabDatasetColumnProfileRead[];
+  start_time: string | null;
+  end_time: string | null;
+  structure: NILMLabDatasetStructureNodeRead[];
+  notes: string[];
+}
+
+export interface NILMLabDatasetProfileRead {
+  dataset: string;
+  dataset_label: string;
+  raw_file_count: number;
+  profiled_file_count: number;
+  total_size_bytes: number | null;
+  files: NILMLabDatasetFileProfileRead[];
+}
+
 export interface NILMLabReportRead {
   dataset: string;
   house_id: string;

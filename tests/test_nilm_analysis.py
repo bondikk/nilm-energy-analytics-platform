@@ -40,6 +40,10 @@ def test_nilm_analysis_route_is_registered() -> None:
     assert str(app.url_path_for("get_nilm_lab_demo")) == "/nilm/lab/demo"
     assert str(app.url_path_for("get_nilm_lab_catalog")) == "/nilm/lab/catalog"
     assert str(app.url_path_for("get_nilm_lab_datasets")) == "/nilm/lab/datasets"
+    assert (
+        str(app.url_path_for("get_nilm_lab_dataset_profile", dataset="refit"))
+        == "/nilm/lab/datasets/refit/profile"
+    )
     assert str(app.url_path_for("get_nilm_lab_report")) == "/nilm/lab/report"
 
 

@@ -7,6 +7,7 @@ import type {
   EnergySummaryRead,
   HomeRead,
   NILMLabCatalogRead,
+  NILMLabDatasetProfileRead,
   NILMLabDatasetsRead,
   NILMLabDemoRead,
   NILMLabReportRead,
@@ -112,6 +113,11 @@ export const apiClient = {
   },
   nilmDatasets() {
     return request<NILMLabDatasetsRead>("/nilm/lab/datasets");
+  },
+  nilmDatasetProfile(dataset: string, maxFiles = 6) {
+    return request<NILMLabDatasetProfileRead>(`/nilm/lab/datasets/${dataset}/profile`, {
+      query: { max_files: maxFiles },
+    });
   },
   nilmDemo(dataset: string, houseId: string, appliance: string) {
     return request<NILMLabDemoRead>("/nilm/lab/demo", {

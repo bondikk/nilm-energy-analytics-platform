@@ -26,7 +26,9 @@ from app.ml.datasets.lab_demo import (
     project_file_inventory,
     project_path_has_data,
     project_path_exists,
+    resolve_project_path,
 )
+from app.ml.datasets.profiling import profile_dataset_file
 from app.ml.evaluation.reports import build_evaluation_report
 from app.ml.models.baseline_threshold import (
     predict_appliance_power_threshold,
@@ -37,9 +39,13 @@ from app.schemas.nilm import (
     NILMAnalysisRead,
     NILMLabApplianceRead,
     NILMLabCatalogRead,
+    NILMLabDatasetColumnProfileRead,
     NILMLabDatasetFileRead,
+    NILMLabDatasetFileProfileRead,
     NILMLabDatasetInventoryItemRead,
+    NILMLabDatasetProfileRead,
     NILMLabDatasetRead,
+    NILMLabDatasetStructureNodeRead,
     NILMLabDatasetsRead,
     NILMLabDemoRead,
     NILMLabHouseRead,
@@ -315,6 +321,74 @@ async def get_nilm_lab_datasets() -> NILMLabDatasetsRead:
             "Convert raw houses into the unified CSV schema under data/processed/ "
             "before training or evaluating larger experiments."
         ),
+    )
+
+
+@lab_router.get("/datasets/{dataset}/profile", response_model=NILMLabDatasetProfileRead)
+async def get_nilm_lab_dataset_profile(
+    dataset: str,
+    max_files: Annotated[int, Query(ge=1, le=12)] = 6,
+) -> NILMLabDatasetProfileRead:
+    if dataset not in SUPPORTED_LAB_DATASETS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"dataset must be one of: {', '.join(SUPPORTED_LAB_DATASETS)}",
+        )
+
+    metadata = LAB_DATASET_METADATA[dataset]
+    raw_files, raw_file_count, raw_total_bytes = project_file_inventory(
+        metadata["raw_path"],
+        limit=max_files,
+    )
+    profiles = [
+        profile_dataset_file(resolve_project_path(file["path"]))
+        for file in raw_files[:max_files]
+    ]
+
+    return NILMLabDatasetProfileRead(
+        dataset=dataset,
+        dataset_label=LAB_DATASET_LABELS[dataset],
+        raw_file_count=raw_file_count,
+        profiled_file_count=len(profiles),
+        total_size_bytes=raw_total_bytes,
+        files=[
+            NILMLabDatasetFileProfileRead(
+                name=profile.name,
+                path=profile.path,
+                kind=profile.kind,
+                size_bytes=profile.size_bytes,
+                status=profile.status,
+                row_count=profile.row_count,
+                column_count=profile.column_count,
+                columns=list(profile.columns),
+                preview_rows=list(profile.preview_rows),
+                column_profiles=[
+                    NILMLabDatasetColumnProfileRead(
+                        name=column.name,
+                        kind=column.kind,
+                        non_empty_count=column.non_empty_count,
+                        missing_count=column.missing_count,
+                        min_value=column.min_value,
+                        max_value=column.max_value,
+                        mean_value=column.mean_value,
+                    )
+                    for column in profile.column_profiles
+                ],
+                start_time=profile.start_time,
+                end_time=profile.end_time,
+                structure=[
+                    NILMLabDatasetStructureNodeRead(
+                        path=node.path,
+                        kind=node.kind,
+                        shape=node.shape,
+                        dtype=node.dtype,
+                    )
+                    for node in profile.structure
+                ],
+                notes=list(profile.notes),
+            )
+            for profile in profiles
+        ],
     )
 
 

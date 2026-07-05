@@ -8,6 +8,7 @@ import {
   Gauge,
   HardDrive,
   Microscope,
+  RefreshCw,
   Target,
   Waves,
 } from "lucide-react";
@@ -32,7 +33,9 @@ import type {
   NILMLabApplianceRead,
   NILMLabCatalogRead,
   NILMLabDatasetFileRead,
+  NILMLabDatasetFileProfileRead,
   NILMLabDatasetInventoryItemRead,
+  NILMLabDatasetProfileRead,
   NILMLabDatasetsRead,
   NILMLabDemoRead,
   NILMLabModelRead,
@@ -56,6 +59,9 @@ export function NilmLabPage() {
   const [activeMode, setActiveMode] = useState<LabMode>("datasets");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [datasetProfile, setDatasetProfile] = useState<NILMLabDatasetProfileRead | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [visibility, setVisibility] = useState<NilmOverlayVisibility>(
     DEFAULT_NILM_OVERLAY_VISIBILITY,
@@ -117,6 +123,38 @@ export function NilmLabPage() {
       cancelled = true;
     };
   }, [appliance, catalog, dataset, houseId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDatasetProfile() {
+      setProfileLoading(true);
+      setProfileError("");
+      try {
+        const nextProfile = await apiClient.nilmDatasetProfile(dataset, 6);
+        if (!cancelled) {
+          setDatasetProfile(nextProfile);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setDatasetProfile(null);
+          setProfileError(
+            caught instanceof Error ? caught.message : "Unable to profile NILM dataset",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
+      }
+    }
+
+    if (activeMode === "analysis") {
+      void loadDatasetProfile();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMode, dataset]);
 
   const selectedDataset = datasetLibrary?.datasets.find((item) => item.id === dataset) ?? null;
   const selectedModel = catalog?.models[0] ?? null;
@@ -254,8 +292,11 @@ export function NilmLabPage() {
         <DatasetAnalysisPanel
           appliance={selectedAppliance}
           dataset={selectedDataset}
+          datasetProfile={datasetProfile?.dataset === dataset ? datasetProfile : null}
           demo={demo}
           houseId={houseId}
+          profileError={profileError}
+          profileLoading={profileLoading}
         />
       ) : null}
 
@@ -327,7 +368,12 @@ function DatasetLibraryPanel({
               <span className="eyebrow">{selected.status}</span>
               <h3>{selected.label}</h3>
             </div>
-            <a className="button button--secondary" href={selected.public_reference} rel="noreferrer" target="_blank">
+            <a
+              className="button button--secondary"
+              href={selected.public_reference}
+              rel="noreferrer"
+              target="_blank"
+            >
               <FileText size={16} />
               Source
             </a>
@@ -353,10 +399,12 @@ function DatasetLibraryPanel({
             />
             <DatasetAvailability
               available={selected.sample_available}
-              detail={selected.sample_available ? "usable in prediction demo" : "not bundled"}
+              detail={selected.sample_available ? "usable in prediction demo" : undefined}
               icon={<Waves size={15} />}
               label="Sample"
-              path={selected.sample_path ?? "not bundled"}
+              path={selected.sample_path ?? "No packaged sample"}
+              state={selected.sample_available ? "ready" : "optional"}
+              statusLabel={selected.sample_available ? "ready" : "optional"}
             />
           </div>
 
@@ -410,35 +458,45 @@ function DatasetLibraryPanel({
 function DatasetAnalysisPanel({
   appliance,
   dataset,
+  datasetProfile,
   demo,
   houseId,
+  profileError,
+  profileLoading,
 }: {
   appliance: NILMLabApplianceRead | null;
   dataset: NILMLabDatasetInventoryItemRead;
+  datasetProfile: NILMLabDatasetProfileRead | null;
   demo: NILMLabDemoRead;
   houseId: string;
+  profileError: string;
+  profileLoading: boolean;
 }) {
-  const pipelineSteps = [
+  const pipelineSteps: Array<{
+    detail: string;
+    label: string;
+    state: "ready" | "missing" | "optional";
+  }> = [
     {
       label: "Raw dataset connected",
-      ready: dataset.raw_available,
+      state: dataset.raw_available ? "ready" : "missing",
       detail: `${dataset.raw_file_count} files in ${dataset.raw_path}`,
     },
     {
       label: "Unified processed CSV",
-      ready: dataset.processed_available,
+      state: dataset.processed_available ? "ready" : "missing",
       detail: dataset.processed_available
         ? dataset.processed_path
         : "Convert raw data before full training/evaluation.",
     },
     {
-      label: "Sample experiment available",
-      ready: dataset.sample_available,
-      detail: dataset.sample_path ?? "No packaged sample for this dataset yet.",
+      label: dataset.sample_available ? "Sample experiment available" : "Packaged sample",
+      state: dataset.sample_available ? "ready" : "optional",
+      detail: dataset.sample_path ?? "Not bundled for this dataset; raw analysis can still continue.",
     },
     {
       label: "Baseline prediction loaded",
-      ready: demo.sample_count > 0,
+      state: demo.sample_count > 0 ? "ready" : "missing",
       detail: `${demo.sample_count} samples for ${demo.appliance_label}`,
     },
   ];
@@ -486,8 +544,8 @@ function DatasetAnalysisPanel({
           </div>
           <div className="pipeline-list">
             {pipelineSteps.map((step) => (
-              <div className={`pipeline-step ${step.ready ? "is-ready" : "is-missing"}`} key={step.label}>
-                <span>{step.ready ? "Ready" : "Missing"}</span>
+              <div className={`pipeline-step is-${step.state}`} key={step.label}>
+                <span>{pipelineStatusLabel(step.state)}</span>
                 <div>
                   <strong>{step.label}</strong>
                   <small>{step.detail}</small>
@@ -524,7 +582,223 @@ function DatasetAnalysisPanel({
           </dl>
         </article>
       </section>
+
+      <RawDatasetProfilePanel
+        dataset={dataset}
+        profile={datasetProfile}
+        profileError={profileError}
+        profileLoading={profileLoading}
+      />
     </>
+  );
+}
+
+function RawDatasetProfilePanel({
+  dataset,
+  profile,
+  profileError,
+  profileLoading,
+}: {
+  dataset: NILMLabDatasetInventoryItemRead;
+  profile: NILMLabDatasetProfileRead | null;
+  profileError: string;
+  profileLoading: boolean;
+}) {
+  return (
+    <section className="panel raw-profile-panel">
+      <div className="panel__heading">
+        <div>
+          <span className="eyebrow">Raw dataset profile</span>
+          <h2>{dataset.label} detailed analysis</h2>
+        </div>
+        <StatusPill tone={profile?.files.length ? "success" : undefined}>
+          {profileLoading ? "profiling" : `${profile?.profiled_file_count ?? 0} files`}
+        </StatusPill>
+      </div>
+
+      {profileLoading ? (
+        <div className="dataset-empty-row">
+          <RefreshCw size={16} />
+          Profiling full raw files. Large CSV datasets can take a few seconds.
+        </div>
+      ) : null}
+
+      {profileError ? <div className="dataset-empty-row">{profileError}</div> : null}
+
+      {!profileLoading && !profileError && !profile?.files.length ? (
+        <div className="dataset-empty-row">
+          No raw files are available for profiling under {dataset.raw_path}.
+        </div>
+      ) : null}
+
+      {profile ? (
+        <div className="raw-profile-file-grid">
+          {profile.files.map((file) => (
+            <RawDatasetFileProfile key={file.path} file={file} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function RawDatasetFileProfile({ file }: { file: NILMLabDatasetFileProfileRead }) {
+  const previewColumns = file.preview_rows[0] ? Object.keys(file.preview_rows[0]) : [];
+
+  return (
+    <article className="raw-profile-file">
+      <div className="dataset-detail-panel__heading">
+        <div>
+          <span className="eyebrow">{file.kind} · {file.status}</span>
+          <h3>{file.name}</h3>
+        </div>
+        <StatusPill tone={file.status === "profiled" ? "success" : "warning"}>
+          {formatBytes(file.size_bytes)}
+        </StatusPill>
+      </div>
+
+      <dl className="dataset-stats dataset-stats--wide">
+        <div>
+          <dt>Rows</dt>
+          <dd>{formatCount(file.row_count)}</dd>
+        </div>
+        <div>
+          <dt>Columns</dt>
+          <dd>{formatCount(file.column_count)}</dd>
+        </div>
+        <div>
+          <dt>Start</dt>
+          <dd>{formatDateTime(file.start_time)}</dd>
+        </div>
+        <div>
+          <dt>End</dt>
+          <dd>{formatDateTime(file.end_time)}</dd>
+        </div>
+      </dl>
+
+      {file.columns.length ? (
+        <div className="column-cloud" aria-label="Dataset columns">
+          {file.columns.slice(0, 24).map((column) => (
+            <span key={column}>{column}</span>
+          ))}
+        </div>
+      ) : null}
+
+      {file.column_profiles.length ? (
+        <ProfileMetricTable profiles={file.column_profiles} />
+      ) : null}
+
+      {file.structure.length ? <HdfStructureTable nodes={file.structure} /> : null}
+
+      {file.preview_rows.length ? (
+        <PreviewRowsTable columns={previewColumns} rows={file.preview_rows} />
+      ) : null}
+
+      {file.notes.length ? (
+        <div className="profile-notes">
+          {file.notes.map((note) => (
+            <p key={note}>{note}</p>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function ProfileMetricTable({
+  profiles,
+}: {
+  profiles: NILMLabDatasetFileProfileRead["column_profiles"];
+}) {
+  return (
+    <div className="table-wrap">
+      <table className="data-table data-table--compact">
+        <thead>
+          <tr>
+            <th>Signal</th>
+            <th>Non-empty</th>
+            <th>Missing</th>
+            <th>Min</th>
+            <th>Mean</th>
+            <th>Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {profiles.map((profile) => (
+            <tr key={profile.name}>
+              <td>{profile.name}</td>
+              <td>{formatCount(profile.non_empty_count)}</td>
+              <td>{formatCount(profile.missing_count)}</td>
+              <td>{formatNumber(profile.min_value)}</td>
+              <td>{formatNumber(profile.mean_value)}</td>
+              <td>{formatNumber(profile.max_value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function HdfStructureTable({
+  nodes,
+}: {
+  nodes: NILMLabDatasetFileProfileRead["structure"];
+}) {
+  return (
+    <div className="table-wrap">
+      <table className="data-table data-table--compact">
+        <thead>
+          <tr>
+            <th>HDF5 path</th>
+            <th>Kind</th>
+            <th>Shape</th>
+            <th>Dtype</th>
+          </tr>
+        </thead>
+        <tbody>
+          {nodes.map((node) => (
+            <tr key={node.path}>
+              <td>{node.path}</td>
+              <td>{node.kind}</td>
+              <td>{node.shape ?? "-"}</td>
+              <td>{node.dtype ?? "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PreviewRowsTable({
+  columns,
+  rows,
+}: {
+  columns: string[];
+  rows: Array<Record<string, string>>;
+}) {
+  return (
+    <div className="table-wrap">
+      <table className="data-table data-table--compact">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`${index}-${Object.values(row).join("-")}`}>
+              {columns.map((column) => (
+                <td key={column}>{row[column]}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -729,24 +1003,31 @@ function DatasetAvailability({
   icon,
   label,
   path,
+  state,
+  statusLabel,
 }: {
   available: boolean;
-  detail: string;
+  detail?: string;
   icon: ReactNode;
   label: string;
   path: string;
+  state?: "ready" | "missing" | "optional";
+  statusLabel?: string;
 }) {
+  const resolvedState = state ?? (available ? "ready" : "missing");
+  const resolvedStatusLabel = statusLabel ?? (available ? "ready" : "missing");
+  const statusTone =
+    resolvedState === "ready" ? "success" : resolvedState === "missing" ? "warning" : undefined;
+
   return (
     <div className="dataset-availability">
-      <span className={available ? "is-ready" : "is-missing"}>{icon}</span>
+      <span className={`is-${resolvedState}`}>{icon}</span>
       <div>
         <strong>{label}</strong>
         <small>{path}</small>
-        <small>{detail}</small>
+        {detail ? <small>{detail}</small> : null}
       </div>
-      <StatusPill tone={available ? "success" : "warning"}>
-        {available ? "ready" : "missing"}
-      </StatusPill>
+      <StatusPill tone={statusTone}>{resolvedStatusLabel}</StatusPill>
     </div>
   );
 }
@@ -809,6 +1090,16 @@ function DatasetReadiness({ dataset }: { dataset: NILMLabDatasetInventoryItemRea
   return <StatusPill tone="danger">missing raw</StatusPill>;
 }
 
+function pipelineStatusLabel(state: "ready" | "missing" | "optional") {
+  if (state === "ready") {
+    return "Ready";
+  }
+  if (state === "optional") {
+    return "Optional";
+  }
+  return "Missing";
+}
+
 function formatBytes(value: number | null) {
   if (value === null) {
     return "unknown";
@@ -831,4 +1122,30 @@ function formatBytes(value: number | null) {
   return `${size.toLocaleString(undefined, {
     maximumFractionDigits: size >= 10 ? 1 : 2,
   })} ${unit}`;
+}
+
+function formatCount(value: number | null) {
+  if (value === null) {
+    return "-";
+  }
+  return value.toLocaleString();
+}
+
+function formatNumber(value: number | null) {
+  if (value === null) {
+    return "-";
+  }
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: Math.abs(value) >= 100 ? 1 : 3,
+  });
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

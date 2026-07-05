@@ -830,6 +830,11 @@ kbd {
   color: var(--amber);
 }
 
+.dataset-availability .is-optional {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--muted);
+}
+
 .dataset-availability strong,
 .dataset-availability small {
   display: block;
@@ -866,7 +871,62 @@ kbd {
   min-width: 0;
 }
 
+.raw-profile-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.raw-profile-file-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.raw-profile-file {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 13, 22, 0.34);
+  padding: 16px;
+}
+
+.raw-profile-file h3 {
+  margin: 3px 0 0;
+  font-size: 21px;
+}
+
+.column-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.column-cloud span {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.56);
+  color: #dbe4f0;
+  font-size: 12px;
+  font-weight: 760;
+  padding: 6px 9px;
+}
+
+.profile-notes {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-notes p {
+  border-left: 3px solid rgba(96, 165, 250, 0.45);
+  margin: 0;
+  padding-left: 10px;
+}
+
 .dataset-empty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border: 1px dashed rgba(148, 163, 184, 0.28);
   border-radius: 8px;
   color: var(--muted);
@@ -907,6 +967,11 @@ kbd {
 .pipeline-step.is-missing > span {
   background: rgba(245, 158, 11, 0.13);
   color: #fde68a;
+}
+
+.pipeline-step.is-optional > span {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
 }
 
 .pipeline-step strong,

@@ -5,6 +5,7 @@ import pytest
 
 from app.ml.datasets.schema import UnifiedNILMRow, read_unified_nilm_csv, write_unified_nilm_csv
 from app.ml.datasets.lab_demo import build_lab_demo_rows
+from app.ml.datasets.profiling import profile_dataset_file
 from app.ml.datasets.uk_dale_loader import UKDaleHouseConfig, load_uk_dale_house
 from app.ml.evaluation.metrics import classification_metrics, regression_metrics
 from app.ml.evaluation.reports import build_evaluation_report
@@ -161,3 +162,33 @@ def test_nilm_metrics_and_report() -> None:
     assert classification.f1_score == 1
     assert report.regression.mae_w == 5
     assert "- F1-score: 1.0" in report.to_markdown()
+
+
+def test_dataset_csv_profiler_summarizes_raw_power_file(tmp_path: Path) -> None:
+    csv_path = tmp_path / "raw_house.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "Time,Aggregate,Fridge,Kettle,Issues",
+                "2026-01-01 00:00:00,100,80,0,0",
+                "2026-01-01 00:00:08,2400,82,2200,0",
+                "2026-01-01 00:00:16,110,79,0,0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    profile = profile_dataset_file(csv_path)
+
+    assert profile.status == "profiled"
+    assert profile.row_count == 3
+    assert profile.column_count == 5
+    assert profile.columns == ("Time", "Aggregate", "Fridge", "Kettle", "Issues")
+    assert profile.start_time is not None
+    assert profile.end_time is not None
+    assert profile.preview_rows[0]["Aggregate"] == "100"
+
+    aggregate = next(column for column in profile.column_profiles if column.name == "Aggregate")
+    assert aggregate.min_value == 100
+    assert aggregate.max_value == 2400
+    assert aggregate.mean_value == 870
