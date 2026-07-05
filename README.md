@@ -36,28 +36,36 @@ view with:
 
 ### Energy Control Room
 
-The hero screenshot at the top shows the intelligence strip, energy KPIs,
-interactive chart, device activity, and selected device inspector.
+The hero screenshot at the top shows the authenticated research dashboard with
+live KPI cards and the active power trend.
 
-### NILM Lab
+### Telemetry Analytics
 
-The NILM Lab view shows aggregate power, appliance ground truth, baseline
-prediction, and evaluation metrics for a small dataset-backed experiment.
+The analytics page focuses on selected home/device telemetry and the active
+power load profile.
 
-![Energy insights and anomaly timeline](docs/screenshots/02-insights-planner-timeline.png)
+![Telemetry analytics](docs/screenshots/02-telemetry-analytics.png)
 
-### Analytics
+### NILM Dataset Library
 
-The analytics view keeps the same visual language while exposing the load
-profile chart and latest readings table.
+The dataset layer page shows UK-DALE, REDD, and REFIT metadata, local
+availability, expected raw/processed paths, and next import actions.
 
-![Analytics load profile](docs/screenshots/03-analytics-load-profile.png)
+![NILM dataset library](docs/screenshots/03-nilm-dataset-library.png)
 
-Optional screenshots to add later:
+### NILM Prediction Overlay
 
-- Swagger API docs at `http://127.0.0.1:8000/docs`
-- Simulator page after demo data seeding
-- Anomaly triage page with acknowledge/resolve actions
+The overlay chart compares aggregate power, appliance ground truth, baseline
+prediction, absolute error, and evaluation metrics.
+
+![NILM prediction overlay](docs/screenshots/04-nilm-prediction-overlay.png)
+
+### Simulator
+
+The simulator page can seed local demo data and publish normal or spike metrics
+through the MQTT ingestion path.
+
+![Simulator](docs/screenshots/05-simulator.png)
 
 ## Architecture
 
