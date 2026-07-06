@@ -1,6 +1,5 @@
 import {
   Activity,
-  BarChart3,
   Database,
   Download,
   FileText,
@@ -31,6 +30,7 @@ import { formatEnergyWh, formatMetric, formatWatts } from "../features/nilm/nilm
 import { apiClient } from "../services/apiClient";
 import type {
   NILMLabApplianceRead,
+  NILMLabAnalysisRunRead,
   NILMLabCatalogRead,
   NILMLabDatasetConversionRead,
   NILMLabDatasetDownloadGuideRead,
@@ -46,12 +46,6 @@ import type {
 
 type LabMode = "datasets" | "analysis" | "prediction";
 
-const LAB_MODES: Array<{ id: LabMode; label: string; icon: ReactNode }> = [
-  { id: "datasets", label: "Datasets", icon: <FolderOpen size={16} /> },
-  { id: "analysis", label: "Analysis", icon: <BarChart3 size={16} /> },
-  { id: "prediction", label: "Prediction", icon: <Activity size={16} /> },
-];
-
 const LIVE_DATASET_PROFILE_INTERVAL_MS = 8000;
 
 export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMode }) {
@@ -61,7 +55,7 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
   const [dataset, setDataset] = useState("uk-dale");
   const [houseId, setHouseId] = useState("house-1");
   const [appliance, setAppliance] = useState("kettle");
-  const [activeMode, setActiveMode] = useState<LabMode>(initialMode);
+  const [activeMode] = useState<LabMode>(initialMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [datasetProfile, setDatasetProfile] = useState<NILMLabDatasetProfileRead | null>(null);
@@ -70,6 +64,8 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
   const [profileUpdatedAt, setProfileUpdatedAt] = useState<string | null>(null);
   const [liveProfileEnabled, setLiveProfileEnabled] = useState(true);
   const [reportBusy, setReportBusy] = useState(false);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisRun, setAnalysisRun] = useState<NILMLabAnalysisRunRead | null>(null);
   const [visibility, setVisibility] = useState<NilmOverlayVisibility>(
     DEFAULT_NILM_OVERLAY_VISIBILITY,
   );
@@ -176,6 +172,7 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
   const selectedDataset = datasetLibrary?.datasets.find((item) => item.id === dataset) ?? null;
   const selectedModel = catalog?.models[0] ?? null;
   const selectedAppliance = catalog?.appliances.find((item) => item.id === appliance) ?? null;
+  const isDatasetRoute = initialMode === "datasets";
   const chartPoints = useMemo(() => buildNilmChartPoints(demo?.points ?? []), [demo]);
   const experimentSummary = useMemo(
     () => (demo ? summarizeNilmExperiment(demo) : null),
@@ -199,6 +196,28 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
       URL.revokeObjectURL(url);
     } finally {
       setReportBusy(false);
+    }
+  }
+
+  async function runAnalysis() {
+    setAnalysisBusy(true);
+    setError("");
+    try {
+      setAnalysisRun(
+        await apiClient.nilmRunAnalysis({
+          dataset_id: dataset,
+          house_id: houseId,
+          appliance,
+          analysis_type: "baseline_disaggregation",
+          model_name: selectedModel?.id ?? "threshold_step_baseline",
+          max_samples: 500,
+          use_sample_if_full_dataset_missing: true,
+        }),
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to run NILM analysis");
+    } finally {
+      setAnalysisBusy(false);
     }
   }
 
@@ -281,21 +300,7 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
         </label>
       </section>
 
-      <section className="lab-tabs" aria-label="NILM Lab workflow">
-        {LAB_MODES.map((mode) => (
-          <button
-            className={`lab-tab ${activeMode === mode.id ? "is-active" : ""}`}
-            key={mode.id}
-            type="button"
-            onClick={() => setActiveMode(mode.id)}
-          >
-            {mode.icon}
-            {mode.label}
-          </button>
-        ))}
-      </section>
-
-      {activeMode === "datasets" && datasetLibrary ? (
+      {isDatasetRoute && datasetLibrary ? (
         <DatasetLibraryPanel
           datasets={datasetLibrary.datasets}
           ingestionNote={datasetLibrary.ingestion_note}
@@ -305,9 +310,11 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
         />
       ) : null}
 
-      {activeMode === "analysis" && selectedDataset ? (
+      {!isDatasetRoute && selectedDataset ? (
         <DatasetAnalysisPanel
           appliance={selectedAppliance}
+          analysisBusy={analysisBusy}
+          analysisRun={analysisRun}
           dataset={selectedDataset}
           datasetProfile={datasetProfile?.dataset === dataset ? datasetProfile : null}
           demo={demo}
@@ -316,11 +323,12 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
           profileLoading={profileLoading}
           profileUpdatedAt={profileUpdatedAt}
           liveProfileEnabled={liveProfileEnabled}
+          onRunAnalysis={runAnalysis}
           onToggleLiveProfile={() => setLiveProfileEnabled((current) => !current)}
         />
       ) : null}
 
-      {activeMode === "prediction" ? (
+      {!isDatasetRoute ? (
         <PredictionWorkspace
           chartPoints={chartPoints}
           demo={demo}
@@ -810,6 +818,8 @@ function DatasetConversionPanel({
 
 function DatasetAnalysisPanel({
   appliance,
+  analysisBusy,
+  analysisRun,
   dataset,
   datasetProfile,
   demo,
@@ -819,8 +829,11 @@ function DatasetAnalysisPanel({
   profileLoading,
   profileUpdatedAt,
   onToggleLiveProfile,
+  onRunAnalysis,
 }: {
   appliance: NILMLabApplianceRead | null;
+  analysisBusy: boolean;
+  analysisRun: NILMLabAnalysisRunRead | null;
   dataset: NILMLabDatasetInventoryItemRead;
   datasetProfile: NILMLabDatasetProfileRead | null;
   demo: NILMLabDemoRead;
@@ -829,6 +842,7 @@ function DatasetAnalysisPanel({
   profileError: string;
   profileLoading: boolean;
   profileUpdatedAt: string | null;
+  onRunAnalysis: () => void;
   onToggleLiveProfile: () => void;
 }) {
   const pipelineSteps: Array<{
@@ -928,6 +942,10 @@ function DatasetAnalysisPanel({
               <span className="eyebrow">What happens here</span>
               <h2>Analysis workflow</h2>
             </div>
+            <button className="button" disabled={analysisBusy} onClick={onRunAnalysis} type="button">
+              <Activity size={16} />
+              {analysisBusy ? "Running..." : "Run analysis"}
+            </button>
           </div>
           <dl className="definition-list">
             <div>
@@ -950,6 +968,8 @@ function DatasetAnalysisPanel({
         </article>
       </section>
 
+      {analysisRun ? <AnalysisRunResult run={analysisRun} /> : null}
+
       <RawDatasetProfilePanel
         dataset={dataset}
         liveProfileEnabled={liveProfileEnabled}
@@ -960,6 +980,93 @@ function DatasetAnalysisPanel({
         onToggleLiveProfile={onToggleLiveProfile}
       />
     </>
+  );
+}
+
+function AnalysisRunResult({ run }: { run: NILMLabAnalysisRunRead }) {
+  return (
+    <section className="panel">
+      <div className="panel__heading">
+        <div>
+          <span className="eyebrow">Run result</span>
+          <h2>{run.dataset_label} baseline analysis</h2>
+          <p>{run.explanation}</p>
+        </div>
+        <StatusPill tone="success">{run.status}</StatusPill>
+      </div>
+
+      <section className="metric-grid">
+        <MetricCard
+          detail={`${formatDateTime(run.signal_summary.start_time)} - ${formatDateTime(run.signal_summary.end_time)}`}
+          icon={<Waves size={18} />}
+          label="Signal window"
+          tone="blue"
+          value={String(run.signal_summary.sample_count)}
+        />
+        <MetricCard
+          detail={`Mean ${formatWatts(run.signal_summary.aggregate_mean_w ?? 0)}`}
+          icon={<Gauge size={18} />}
+          label="Aggregate range"
+          value={`${formatWatts(run.signal_summary.aggregate_min_w ?? 0)} - ${formatWatts(run.signal_summary.aggregate_max_w ?? 0)}`}
+        />
+        <MetricCard
+          detail={`${run.detected_columns.appliances.length} appliance channels`}
+          icon={<Database size={18} />}
+          label="Detected columns"
+          tone="green"
+          value={run.detected_columns.timestamp ?? "timestamp missing"}
+        />
+        <MetricCard
+          detail={`${formatMetric(run.metrics.precision)} precision`}
+          icon={<Target size={18} />}
+          label="F1 score"
+          tone="green"
+          value={formatMetric(run.metrics.f1_score)}
+        />
+      </section>
+
+      <div className="analysis-grid">
+        <article className="dataset-detail-panel">
+          <div className="dataset-detail-panel__heading">
+            <div>
+              <span className="eyebrow">Events</span>
+              <h3>Detected load steps</h3>
+            </div>
+            <StatusPill>{run.events.length} events</StatusPill>
+          </div>
+          <div className="event-list">
+            {run.events.slice(0, 5).map((event) => (
+              <article className="event-row" key={`${event.ts}-${event.step_magnitude_w}`}>
+                <div className="event-row__icon">
+                  <Activity size={17} />
+                </div>
+                <div>
+                  <strong>
+                    {event.event_type.replace("_", " ")} · {event.estimated_appliance}
+                  </strong>
+                  <span>{event.explanation}</span>
+                </div>
+                <StatusPill>{formatWatts(event.step_magnitude_w)}</StatusPill>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <article className="dataset-detail-panel">
+          <div className="dataset-detail-panel__heading">
+            <div>
+              <span className="eyebrow">Limitations</span>
+              <h3>Interpretation guardrails</h3>
+            </div>
+          </div>
+          <div className="profile-notes">
+            {run.limitations.map((limitation) => (
+              <p key={limitation}>{limitation}</p>
+            ))}
+          </div>
+        </article>
+      </div>
+    </section>
   );
 }
 

@@ -86,6 +86,79 @@ export interface AnomalyRead {
   updated_at: string;
 }
 
+export interface LiveNILMReadingPointRead {
+  ts: string;
+  power_w: number;
+  smoothed_power_w: number;
+  voltage_v: number | null;
+  current_a: number | null;
+}
+
+export interface LiveNILMEventRead {
+  event_id: string;
+  ts: string;
+  direction: "on" | "off";
+  step_magnitude_w: number;
+  before_power_w: number;
+  after_power_w: number;
+  estimated_appliance: string;
+  confidence: number;
+  duration_seconds: number | null;
+  source_signal: string;
+  explanation: string;
+  limitations: string[];
+}
+
+export interface LiveNILMApplianceEstimateRead {
+  appliance: string;
+  label: string;
+  estimated_power_w: number;
+  confidence: number;
+  state: string;
+  source_event_id: string | null;
+  explanation: string;
+}
+
+export interface LiveNILMCurrentRead {
+  home_id: UUID;
+  device_id: UUID | null;
+  current_power_w: number;
+  voltage_v: number | null;
+  current_a: number | null;
+  base_load_w: number;
+  unknown_load_w: number;
+  source_signal: string;
+  signal_unit: string;
+  latest_sample_at: string | null;
+  appliance_estimates: LiveNILMApplianceEstimateRead[];
+  last_event: LiveNILMEventRead | null;
+  limitations: string[];
+}
+
+export interface LiveNILMSignalSummaryRead {
+  sample_count: number;
+  start_at: string | null;
+  end_at: string | null;
+  source_signal: string;
+  min_power_w: number | null;
+  mean_power_w: number | null;
+  max_power_w: number | null;
+  base_load_w: number;
+  peak_to_base_w: number;
+  step_count: number;
+  voltage_estimated: boolean;
+  quality_flags: string[];
+}
+
+export interface LiveNILMSummaryRead {
+  home_id: UUID;
+  device_id: UUID | null;
+  current: LiveNILMCurrentRead;
+  signal: LiveNILMSignalSummaryRead;
+  events: LiveNILMEventRead[];
+  recent_points: LiveNILMReadingPointRead[];
+}
+
 export interface NILMLabMetricsRead {
   mae_w: number;
   rmse_w: number;
@@ -285,6 +358,64 @@ export interface NILMLabReportRead {
   source_file: string;
   generated_at: string;
   markdown: string;
+}
+
+export interface NILMLabAnalysisRunRequest {
+  dataset_id: string;
+  house_id: string;
+  appliance: string;
+  analysis_type: string;
+  model_name: string;
+  max_samples: number;
+  use_sample_if_full_dataset_missing: boolean;
+}
+
+export interface NILMLabSignalSummaryRead {
+  sample_count: number;
+  start_time: string | null;
+  end_time: string | null;
+  aggregate_min_w: number | null;
+  aggregate_mean_w: number | null;
+  aggregate_max_w: number | null;
+  appliance_on_threshold_w: number;
+}
+
+export interface NILMLabDetectedColumnsRead {
+  timestamp: string | null;
+  power: string[];
+  current: string[];
+  voltage: string[];
+  appliances: string[];
+}
+
+export interface NILMLabAnalysisEventRead {
+  ts: string;
+  event_type: string;
+  step_magnitude_w: number;
+  estimated_appliance: string;
+  confidence: number;
+  explanation: string;
+}
+
+export interface NILMLabAnalysisRunRead {
+  run_id: UUID;
+  status: string;
+  dataset_id: string;
+  dataset_label: string;
+  house_id: string;
+  appliance: string;
+  appliance_label: string;
+  analysis_type: string;
+  model_name: string;
+  source_file: string;
+  signal_summary: NILMLabSignalSummaryRead;
+  detected_columns: NILMLabDetectedColumnsRead;
+  chart_data: NILMLabPointRead[];
+  metrics: NILMLabMetricsRead;
+  events: NILMLabAnalysisEventRead[];
+  output: string;
+  explanation: string;
+  limitations: string[];
 }
 
 export interface DemoSeedResponse {

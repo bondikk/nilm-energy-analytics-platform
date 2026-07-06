@@ -10,10 +10,10 @@ import type { DemoLiveMetricResponse, DemoSeedResponse, DeviceRead, HomeRead } f
 
 export function SimulatorPage() {
   const { token } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [sampleCount, setSampleCount] = useState(96);
   const [intervalMinutes, setIntervalMinutes] = useState(15);
+  const [selectedScenario, setSelectedScenario] = useState<LiveScenarioId>("kettle");
+  const [customPowerW, setCustomPowerW] = useState(980);
   const [seedResult, setSeedResult] = useState<DemoSeedResponse | null>(null);
   const [liveResult, setLiveResult] = useState<DemoLiveMetricResponse | null>(null);
   const [homes, setHomes] = useState<HomeRead[]>([]);
@@ -55,8 +55,6 @@ export function SimulatorPage() {
     try {
       setSeedResult(
         await apiClient.seedDemo({
-          email,
-          password,
           sample_count: sampleCount,
           interval_minutes: intervalMinutes,
         }),
@@ -68,25 +66,30 @@ export function SimulatorPage() {
     }
   }
 
-  async function publishLiveMetric(scenario: string) {
+  async function publishLiveMetric(scenario: LiveScenarioId) {
     const home = homes[0];
     const device = devices[0];
     if (!home || !device) {
       setError("Create or seed a workspace before publishing live metrics.");
       return;
     }
+    const selected = scenarioPayload(scenario, customPowerW);
     setError("");
-    setLiveResult(
-      await apiClient.publishLiveMetric(token, {
-        home_id: home.id,
-        device_id: device.id,
-        active_power_w: scenario === "spike" ? 2400 : 620,
-        voltage_v: 230,
-        power_factor: scenario === "spike" ? 0.97 : 0.91,
-        interval_minutes: 1,
-        scenario,
-      }),
-    );
+    try {
+      setLiveResult(
+        await apiClient.publishLiveMetric(token, {
+          home_id: home.id,
+          device_id: device.id,
+          active_power_w: selected.active_power_w,
+          voltage_v: selected.voltage_v,
+          power_factor: selected.power_factor,
+          interval_minutes: 1,
+          scenario,
+        }),
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to publish live signal");
+    }
   }
 
   const targetHome = homes[0] ?? null;
@@ -96,11 +99,9 @@ export function SimulatorPage() {
       ? {
           home_id: targetHome.id,
           device_id: targetDevice.id,
-          active_power_w: 620,
-          voltage_v: 230,
-          power_factor: 0.91,
+          ...scenarioPayload(selectedScenario, customPowerW),
           interval_minutes: 1,
-          scenario: "normal",
+          scenario: selectedScenario,
         }
       : null;
 
@@ -111,7 +112,7 @@ export function SimulatorPage() {
           <div>
             <span className="eyebrow">Developer utility</span>
             <h2>Telemetry Simulator</h2>
-            <p>Generate demo data or send a live MQTT reading through the real ingestion path.</p>
+            <p>Create a local telemetry workspace or publish appliance-like MQTT events.</p>
           </div>
           <Play size={18} />
         </div>
@@ -122,25 +123,11 @@ export function SimulatorPage() {
           <div className="panel__heading">
             <div>
               <span className="eyebrow">Mode 1</span>
-              <h2>Seed demo workspace</h2>
-              <p>Generate reproducible historical readings for Dashboard, Live NILM, and Anomalies.</p>
+              <h2>Demo workspace</h2>
+              <p>Generate reproducible historical readings for Dashboard, Live NILM, and Events.</p>
             </div>
           </div>
         <form className="form-grid" onSubmit={seedWorkspace}>
-          <label>
-            Email
-            <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-          </label>
-          <label>
-            Password
-            <input
-              minLength={8}
-              required
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
           <label>
             Samples
             <input
@@ -162,7 +149,7 @@ export function SimulatorPage() {
             />
           </label>
           <button className="button" disabled={busy} type="submit">
-            {busy ? "Generating..." : "Generate demo dataset"}
+            {busy ? "Generating..." : "Generate demo workspace"}
           </button>
         </form>
         {seedResult ? (
@@ -181,8 +168,8 @@ export function SimulatorPage() {
         <div className="panel__heading">
           <div>
             <span className="eyebrow">Mode 2</span>
-            <h2>Send live signal</h2>
-            <p>Publish a normal or spike reading so Dashboard updates through MQTT and Redis.</p>
+            <h2>Live MQTT test</h2>
+            <p>Publish a realistic load event and inspect its NILM estimate on Dashboard or Live NILM.</p>
           </div>
           <RadioTower size={18} />
         </div>
@@ -200,14 +187,40 @@ export function SimulatorPage() {
             </div>
           </div>
         ) : null}
-        <div className="button-row">
-          <button className="button button--secondary" type="button" onClick={() => publishLiveMetric("normal")}>
-            Normal load
-          </button>
-          <button className="button" type="button" onClick={() => publishLiveMetric("spike")}>
-            Spike load
-          </button>
+        <div className="scenario-grid">
+          {LIVE_SCENARIOS.map((scenario) => (
+            <button
+              className={`scenario-option ${selectedScenario === scenario.id ? "is-selected" : ""}`}
+              key={scenario.id}
+              type="button"
+              onClick={() => setSelectedScenario(scenario.id)}
+            >
+              <strong>{scenario.label}</strong>
+              <span>{scenario.description}</span>
+              <small>{formatWatts(scenarioPayload(scenario.id, customPowerW).active_power_w)}</small>
+            </button>
+          ))}
         </div>
+        {selectedScenario === "custom" ? (
+          <label className="form-inline-control">
+            Custom active power
+            <input
+              min={0}
+              max={5000}
+              type="number"
+              value={customPowerW}
+              onChange={(event) => setCustomPowerW(Number(event.target.value))}
+            />
+          </label>
+        ) : null}
+        <button
+          className="button"
+          disabled={!targetHome || !targetDevice}
+          type="button"
+          onClick={() => publishLiveMetric(selectedScenario)}
+        >
+          Publish selected event
+        </button>
         {targetHome && targetDevice ? (
           <StatusPill tone="success">Ready to publish</StatusPill>
         ) : (
@@ -227,4 +240,56 @@ export function SimulatorPage() {
       </div>
     </div>
   );
+}
+
+type LiveScenarioId = "normal" | "kettle" | "fridge" | "spike" | "custom";
+
+const LIVE_SCENARIOS: Array<{
+  id: LiveScenarioId;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "normal",
+    label: "Normal load",
+    description: "Small steady household baseline.",
+  },
+  {
+    id: "kettle",
+    label: "Kettle event",
+    description: "Large resistive step for live disaggregation.",
+  },
+  {
+    id: "fridge",
+    label: "Fridge cycle",
+    description: "Small compressor-like load edge.",
+  },
+  {
+    id: "spike",
+    label: "Power spike",
+    description: "High load event useful for event detection.",
+  },
+  {
+    id: "custom",
+    label: "Custom",
+    description: "Manual active-power payload.",
+  },
+];
+
+function scenarioPayload(scenario: LiveScenarioId, customPowerW: number) {
+  const payloads: Record<LiveScenarioId, { active_power_w: number; voltage_v: number; power_factor: number }> = {
+    normal: { active_power_w: 430, voltage_v: 230, power_factor: 0.9 },
+    kettle: { active_power_w: 2260, voltage_v: 230, power_factor: 0.98 },
+    fridge: { active_power_w: 165, voltage_v: 230, power_factor: 0.82 },
+    spike: { active_power_w: 3100, voltage_v: 230, power_factor: 0.97 },
+    custom: { active_power_w: customPowerW, voltage_v: 230, power_factor: 0.92 },
+  };
+  return payloads[scenario];
+}
+
+function formatWatts(value: number) {
+  if (Math.abs(value) >= 1000) {
+    return `${(value / 1000).toFixed(2)} kW`;
+  }
+  return `${Math.round(value)} W`;
 }

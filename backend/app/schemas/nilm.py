@@ -305,3 +305,61 @@ class NILMLabReportRead(BaseModel):
     source_file: str
     generated_at: datetime
     markdown: str
+
+
+class NILMLabAnalysisRunRequest(BaseModel):
+    dataset_id: str = "uk-dale"
+    house_id: str = "house-1"
+    appliance: str = "kettle"
+    analysis_type: str = "baseline_disaggregation"
+    model_name: str = "threshold_step_baseline"
+    max_samples: int = Field(default=500, ge=8, le=5000)
+    use_sample_if_full_dataset_missing: bool = True
+
+
+class NILMLabSignalSummaryRead(BaseModel):
+    sample_count: int
+    start_time: datetime | None
+    end_time: datetime | None
+    aggregate_min_w: float | None
+    aggregate_mean_w: float | None
+    aggregate_max_w: float | None
+    appliance_on_threshold_w: float
+
+
+class NILMLabDetectedColumnsRead(BaseModel):
+    timestamp: str | None
+    power: list[str]
+    current: list[str]
+    voltage: list[str]
+    appliances: list[str]
+
+
+class NILMLabAnalysisEventRead(BaseModel):
+    ts: datetime
+    event_type: str
+    step_magnitude_w: float
+    estimated_appliance: str
+    confidence: float = Field(ge=0, le=1)
+    explanation: str
+
+
+class NILMLabAnalysisRunRead(BaseModel):
+    run_id: uuid.UUID
+    status: str
+    dataset_id: str
+    dataset_label: str
+    house_id: str
+    appliance: str
+    appliance_label: str
+    analysis_type: str
+    model_name: str
+    source_file: str
+    signal_summary: NILMLabSignalSummaryRead
+    detected_columns: NILMLabDetectedColumnsRead
+    chart_data: list[NILMLabPointRead]
+    metrics: NILMLabMetricsRead
+    events: list[NILMLabAnalysisEventRead]
+    output: str
+    explanation: str
+    limitations: list[str]

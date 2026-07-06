@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const COMMANDS = [
-  { label: "Overview", path: "/dashboard", hint: "Energy summary" },
-  { label: "Analytics", path: "/dashboard/analytics", hint: "Telemetry trends" },
-  { label: "NILM Lab", path: "/dashboard/nilm-lab", hint: "Prediction overlay" },
-  { label: "Anomalies", path: "/dashboard/anomalies", hint: "Events and severity" },
-  { label: "Simulator", path: "/dashboard/simulator", hint: "Demo data and MQTT" },
+  { label: "Dashboard", path: "/dashboard", hint: "Live monitoring summary" },
+  { label: "Live NILM", path: "/dashboard/live-nilm", hint: "Realtime signal disaggregation" },
+  { label: "Datasets", path: "/dashboard/datasets", hint: "Public NILM dataset library" },
+  { label: "NILM Lab", path: "/dashboard/nilm-lab", hint: "Guided dataset experiment" },
+  { label: "Events", path: "/dashboard/anomalies", hint: "Detected anomalies and load events" },
+  { label: "Simulator", path: "/dashboard/simulator", hint: "Demo workspace and MQTT tests" },
   { label: "Settings", path: "/dashboard/settings", hint: "Session and API" },
 ];
 

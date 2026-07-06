@@ -22,7 +22,7 @@ const navItems = [
   { label: "Live NILM", path: "/dashboard/live-nilm", icon: Activity },
   { label: "Datasets", path: "/dashboard/datasets", icon: Database },
   { label: "NILM Lab", path: "/dashboard/nilm-lab", icon: Microscope },
-  { label: "Anomalies", path: "/dashboard/anomalies", icon: AlertTriangle },
+  { label: "Events", path: "/dashboard/anomalies", icon: AlertTriangle },
   { label: "Telemetry Simulator", path: "/dashboard/simulator", icon: Play },
   { label: "Settings", path: "/dashboard/settings", icon: Settings },
 ];
@@ -32,7 +32,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard/live-nilm": "Live NILM",
   "/dashboard/datasets": "Datasets",
   "/dashboard/nilm-lab": "NILM Lab",
-  "/dashboard/anomalies": "Anomalies",
+  "/dashboard/anomalies": "Events",
   "/dashboard/simulator": "Telemetry Simulator",
   "/dashboard/settings": "Settings",
 };

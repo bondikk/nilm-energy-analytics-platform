@@ -1,4 +1,4 @@
-import { Activity, Cpu, Gauge, Target, Zap } from "lucide-react";
+import { Activity, Cpu, Gauge, RadioTower, Target, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "../app/providers";
@@ -11,7 +11,13 @@ import { StatusPill } from "../components/ui/StatusPill";
 import { buildLiveNilmState } from "../features/nilm/liveNilm";
 import { formatWatts } from "../features/nilm/nilmFormat";
 import { apiClient } from "../services/apiClient";
-import type { AnomalyRead, DeviceRead, EnergyMetricRead, HomeRead } from "../types/api";
+import type {
+  AnomalyRead,
+  DeviceRead,
+  EnergyMetricRead,
+  HomeRead,
+  LiveNILMSummaryRead,
+} from "../types/api";
 
 export function AnalyticsPage() {
   const { token } = useAuth();
@@ -19,6 +25,7 @@ export function AnalyticsPage() {
   const [device, setDevice] = useState<DeviceRead | null>(null);
   const [metrics, setMetrics] = useState<EnergyMetricRead[]>([]);
   const [anomalies, setAnomalies] = useState<AnomalyRead[]>([]);
+  const [liveNilmSummary, setLiveNilmSummary] = useState<LiveNILMSummaryRead | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -32,18 +39,20 @@ export function AnalyticsPage() {
         const selectedHome = homes[0] ?? null;
         const devices = selectedHome ? await apiClient.devices(token, selectedHome.id) : [];
         const selectedDevice = devices[0] ?? null;
-        const [nextMetrics, nextAnomalies] =
+        const [nextMetrics, nextAnomalies, nextLiveNilmSummary] =
           selectedHome && selectedDevice
             ? await Promise.all([
                 apiClient.metrics(token, selectedHome.id, selectedDevice.id, 500),
                 apiClient.anomalies(token, selectedHome.id),
+                apiClient.liveNilmSummary(token, selectedHome.id, selectedDevice.id, 500),
               ])
-            : [[] as EnergyMetricRead[], [] as AnomalyRead[]];
+            : [[] as EnergyMetricRead[], [] as AnomalyRead[], null];
         if (!cancelled) {
           setHome(selectedHome);
           setDevice(selectedDevice);
           setMetrics(nextMetrics);
           setAnomalies(nextAnomalies);
+          setLiveNilmSummary(nextLiveNilmSummary);
         }
       } catch (caught) {
         if (!cancelled) {
@@ -62,7 +71,14 @@ export function AnalyticsPage() {
   }, [token]);
 
   const liveState = useMemo(() => buildLiveNilmState(metrics, anomalies), [anomalies, metrics]);
-  const activeAppliances = liveState.activeAppliances.filter((item) => item.state !== "idle");
+  const activeAppliances =
+    liveNilmSummary?.current.appliance_estimates ??
+    liveState.activeAppliances.filter((item) => item.state !== "idle");
+  const signal = liveNilmSummary?.signal;
+  const events = liveNilmSummary?.events ?? [];
+  const currentPowerW = liveNilmSummary?.current.current_power_w ?? liveState.currentPowerW;
+  const stepDeltaW = liveNilmSummary?.current.last_event?.step_magnitude_w ?? liveState.stepDeltaW;
+  const baseLoadW = liveNilmSummary?.current.base_load_w ?? liveState.baseLoadW;
 
   if (loading) {
     return <LoadingSkeleton rows={4} />;
@@ -88,10 +104,10 @@ export function AnalyticsPage() {
           <span className="eyebrow">Live signal interpretation</span>
           <h2>Live NILM</h2>
           <p>
-            {home.name} · {device.name} · heuristic appliance signatures over recent telemetry.
+            {home.name} · {device.name} · realtime step detection and appliance estimates.
           </p>
         </div>
-        <StatusPill tone="success">{metrics.length} readings</StatusPill>
+        <StatusPill tone="success">{signal?.sample_count ?? metrics.length} readings</StatusPill>
       </section>
 
       <section className="metric-grid">
@@ -100,23 +116,23 @@ export function AnalyticsPage() {
           icon={<Zap size={18} />}
           label="Current signal"
           tone="green"
-          value={formatWatts(liveState.currentPowerW)}
+          value={formatWatts(currentPowerW)}
         />
         <MetricCard
           detail="Latest point-to-point signal change"
           icon={<Activity size={18} />}
           label="Step delta"
-          tone={Math.abs(liveState.stepDeltaW) >= 60 ? "amber" : "blue"}
-          value={formatWatts(liveState.stepDeltaW)}
+          tone={Math.abs(stepDeltaW) >= 60 ? "amber" : "blue"}
+          value={formatWatts(stepDeltaW)}
         />
         <MetricCard
           detail="Minimum recent observed load"
           icon={<Gauge size={18} />}
           label="Base load"
-          value={formatWatts(liveState.baseLoadW)}
+          value={formatWatts(baseLoadW)}
         />
         <MetricCard
-          detail="Active or possible signatures"
+          detail={`${events.length} detected step events`}
           icon={<Cpu size={18} />}
           label="Likely appliances"
           tone="blue"
@@ -145,19 +161,92 @@ export function AnalyticsPage() {
             <Target size={18} />
           </div>
           <div className="appliance-estimate-list">
-            {liveState.activeAppliances.map((appliance) => (
-              <div className={`appliance-estimate is-${appliance.state}`} key={appliance.id}>
+            {activeAppliances.map((appliance) => (
+              <div
+                className={`appliance-estimate is-${appliance.state}`}
+                key={"id" in appliance ? appliance.id : appliance.appliance}
+              >
                 <div>
                   <strong>{appliance.label}</strong>
-                  <span>{appliance.reason}</span>
+                  <span>{"reason" in appliance ? appliance.reason : appliance.explanation}</span>
                 </div>
                 <div>
                   <b>{Math.round(appliance.confidence * 100)}%</b>
-                  <small>{formatWatts(appliance.estimatedPowerW)}</small>
+                  <small>
+                    {formatWatts(
+                      "estimatedPowerW" in appliance
+                        ? appliance.estimatedPowerW
+                        : appliance.estimated_power_w,
+                    )}
+                  </small>
                 </div>
               </div>
             ))}
           </div>
+        </article>
+      </section>
+
+      <section className="dashboard-live-grid dashboard-live-grid--secondary">
+        <article className="panel">
+          <div className="panel__heading">
+            <div>
+              <span className="eyebrow">Detailed signal analysis</span>
+              <h2>Signal quality</h2>
+            </div>
+            <RadioTower size={18} />
+          </div>
+          <dl className="definition-list">
+            <div>
+              <dt>Source signal</dt>
+              <dd>{signal?.source_signal ?? "local fallback"}</dd>
+            </div>
+            <div>
+              <dt>Power range</dt>
+              <dd>
+                {formatWatts(signal?.min_power_w ?? 0)} - {formatWatts(signal?.max_power_w ?? 0)}
+              </dd>
+            </div>
+            <div>
+              <dt>Peak over base</dt>
+              <dd>{formatWatts(signal?.peak_to_base_w ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>Quality</dt>
+              <dd>{signal?.quality_flags[0] ?? "Using frontend fallback until API data arrives."}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article className="panel">
+          <div className="panel__heading">
+            <div>
+              <span className="eyebrow">Event timeline</span>
+              <h2>Detected step events</h2>
+            </div>
+            <StatusPill>{events.length} events</StatusPill>
+          </div>
+          {events.length ? (
+            <div className="event-list">
+              {events.slice(-6).reverse().map((event) => (
+                <article className="event-row" key={event.event_id}>
+                  <div className="event-row__icon">
+                    <Activity size={17} />
+                  </div>
+                  <div>
+                    <strong>
+                      {event.direction.toUpperCase()} · {event.estimated_appliance.replace(/_/g, " ")}
+                    </strong>
+                    <span>{event.explanation}</span>
+                  </div>
+                  <StatusPill tone={event.direction === "on" ? "success" : undefined}>
+                    {formatWatts(event.step_magnitude_w)}
+                  </StatusPill>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="No significant load edges were detected in the recent signal." title="No step events" />
+          )}
         </article>
       </section>
 

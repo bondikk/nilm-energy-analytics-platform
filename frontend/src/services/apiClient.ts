@@ -6,7 +6,12 @@ import type {
   EnergyMetricRead,
   EnergySummaryRead,
   HomeRead,
+  LiveNILMCurrentRead,
+  LiveNILMEventRead,
+  LiveNILMSummaryRead,
   NILMLabCatalogRead,
+  NILMLabAnalysisRunRead,
+  NILMLabAnalysisRunRequest,
   NILMLabDatasetConversionRead,
   NILMLabDatasetDownloadGuideRead,
   NILMLabDatasetFilesRead,
@@ -111,6 +116,24 @@ export const apiClient = {
   anomalies(token: string, homeId: UUID) {
     return request<AnomalyRead[]>(`/homes/${homeId}/anomalies`, { token });
   },
+  liveNilmSummary(token: string, homeId: UUID, deviceId?: UUID, limit = 500) {
+    return request<LiveNILMSummaryRead>(`/homes/${homeId}/live-nilm/summary`, {
+      token,
+      query: { device_id: deviceId, limit },
+    });
+  },
+  liveNilmCurrent(token: string, homeId: UUID, deviceId?: UUID, limit = 500) {
+    return request<LiveNILMCurrentRead>(`/homes/${homeId}/live-nilm/current`, {
+      token,
+      query: { device_id: deviceId, limit },
+    });
+  },
+  liveNilmEvents(token: string, homeId: UUID, deviceId?: UUID, limit = 500) {
+    return request<LiveNILMEventRead[]>(`/homes/${homeId}/live-nilm/events`, {
+      token,
+      query: { device_id: deviceId, limit },
+    });
+  },
   updateAnomaly(
     token: string,
     homeId: UUID,
@@ -159,9 +182,13 @@ export const apiClient = {
       query: { dataset, house_id: houseId, appliance },
     });
   },
+  nilmRunAnalysis(payload: NILMLabAnalysisRunRequest) {
+    return request<NILMLabAnalysisRunRead>("/nilm/lab/analysis/run", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
   seedDemo(payload: {
-    email: string;
-    password: string;
     sample_count: number;
     interval_minutes: number;
   }) {

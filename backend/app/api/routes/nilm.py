@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime
+from statistics import fmean
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -41,6 +42,9 @@ from app.ml.preprocessing.labeling import DEFAULT_ON_THRESHOLDS_W
 from app.schemas.nilm import (
     NILMAnalysisRead,
     NILMLabApplianceRead,
+    NILMLabAnalysisEventRead,
+    NILMLabAnalysisRunRead,
+    NILMLabAnalysisRunRequest,
     NILMLabCatalogRead,
     NILMLabDatasetColumnProfileRead,
     NILMLabDatasetConversionRead,
@@ -54,11 +58,13 @@ from app.schemas.nilm import (
     NILMLabDatasetStructureNodeRead,
     NILMLabDatasetsRead,
     NILMLabDemoRead,
+    NILMLabDetectedColumnsRead,
     NILMLabHouseRead,
     NILMLabMetricsRead,
     NILMLabModelRead,
     NILMLabPointRead,
     NILMLabReportRead,
+    NILMLabSignalSummaryRead,
 )
 from app.services.nilm_analysis import NILMDetectionConfig, NILMReading, analyze_load_profile
 
@@ -144,6 +150,62 @@ async def get_nilm_lab_demo(
     appliance: Annotated[str, Query()] = "kettle",
 ) -> NILMLabDemoRead:
     return _build_nilm_lab_demo(dataset=dataset, house_id=house_id, appliance=appliance)
+
+
+@lab_router.post("/analysis/run", response_model=NILMLabAnalysisRunRead)
+async def run_nilm_lab_analysis(
+    payload: NILMLabAnalysisRunRequest,
+) -> NILMLabAnalysisRunRead:
+    demo = _build_nilm_lab_demo(
+        dataset=payload.dataset_id,
+        house_id=payload.house_id,
+        appliance=payload.appliance,
+    )
+    profile = profile_dataset_file(resolve_project_path(demo.source_file))
+    chart_data = demo.points[: payload.max_samples]
+    aggregate_values = [point.aggregate_power_w for point in chart_data]
+
+    return NILMLabAnalysisRunRead(
+        run_id=uuid.uuid4(),
+        status="completed",
+        dataset_id=demo.dataset,
+        dataset_label=demo.dataset_label,
+        house_id=demo.house_id,
+        appliance=demo.appliance,
+        appliance_label=demo.appliance_label,
+        analysis_type=payload.analysis_type,
+        model_name=payload.model_name,
+        source_file=demo.source_file,
+        signal_summary=NILMLabSignalSummaryRead(
+            sample_count=len(chart_data),
+            start_time=chart_data[0].ts if chart_data else None,
+            end_time=chart_data[-1].ts if chart_data else None,
+            aggregate_min_w=min(aggregate_values) if aggregate_values else None,
+            aggregate_mean_w=round(float(fmean(aggregate_values)), 3) if aggregate_values else None,
+            aggregate_max_w=max(aggregate_values) if aggregate_values else None,
+            appliance_on_threshold_w=demo.on_threshold_w,
+        ),
+        detected_columns=NILMLabDetectedColumnsRead(
+            timestamp=profile.detected_timestamp_column,
+            power=list(profile.detected_power_columns),
+            current=list(profile.detected_current_columns),
+            voltage=list(profile.detected_voltage_columns),
+            appliances=list(profile.detected_appliance_columns),
+        ),
+        chart_data=chart_data,
+        metrics=demo.metrics,
+        events=_build_lab_analysis_events(demo),
+        output="baseline_prediction_overlay",
+        explanation=(
+            "Runs a small, reproducible NILM baseline over the selected dataset sample: "
+            "aggregate power is compared with appliance ground truth and threshold-step prediction."
+        ),
+        limitations=[
+            "Uses bundled sample data when full public datasets are not available locally.",
+            "The baseline is useful for pipeline validation and UX, not production disaggregation accuracy.",
+            "Full experiments should use larger processed CSV files and explicit train/test splits.",
+        ],
+    )
 
 
 @lab_router.get("/report", response_model=NILMLabReportRead)
@@ -267,6 +329,30 @@ def _build_nilm_lab_demo(
             for index, row in enumerate(rows)
         ],
     )
+
+
+def _build_lab_analysis_events(demo: NILMLabDemoRead) -> list[NILMLabAnalysisEventRead]:
+    events: list[NILMLabAnalysisEventRead] = []
+    previous_power = demo.points[0].aggregate_power_w if demo.points else 0.0
+    for point in demo.points[1:]:
+        delta_w = point.aggregate_power_w - previous_power
+        previous_power = point.aggregate_power_w
+        if abs(delta_w) < max(80.0, demo.on_threshold_w * 0.2):
+            continue
+        events.append(
+            NILMLabAnalysisEventRead(
+                ts=point.ts,
+                event_type="turn_on" if delta_w > 0 else "turn_off",
+                step_magnitude_w=round(abs(delta_w), 3),
+                estimated_appliance=demo.appliance if delta_w > 0 else "load_off",
+                confidence=0.82 if delta_w > 0 else 0.68,
+                explanation=(
+                    f"Aggregate step of {round(abs(delta_w))} W detected around "
+                    f"{demo.appliance_label} ground truth."
+                ),
+            )
+        )
+    return events[:40]
 
 
 @lab_router.get("/catalog", response_model=NILMLabCatalogRead)

@@ -18,6 +18,8 @@ import type {
   EnergyMetricRead,
   EnergySummaryRead,
   HomeRead,
+  LiveNILMApplianceEstimateRead,
+  LiveNILMSummaryRead,
 } from "../types/api";
 
 export function OverviewPage() {
@@ -27,6 +29,7 @@ export function OverviewPage() {
   const [metrics, setMetrics] = useState<EnergyMetricRead[]>([]);
   const [anomalies, setAnomalies] = useState<AnomalyRead[]>([]);
   const [summary, setSummary] = useState<EnergySummaryRead | null>(null);
+  const [liveNilmSummary, setLiveNilmSummary] = useState<LiveNILMSummaryRead | null>(null);
   const [socketStatus, setSocketStatus] = useState<"connecting" | "online" | "offline">(
     "offline",
   );
@@ -43,20 +46,22 @@ export function OverviewPage() {
         const firstHome = nextHomes[0];
         const nextDevices = firstHome ? await apiClient.devices(token, firstHome.id) : [];
         const firstDevice = nextDevices[0];
-        const [nextSummary, nextMetrics, nextAnomalies] =
+        const [nextSummary, nextMetrics, nextAnomalies, nextLiveNilmSummary] =
           firstHome && firstDevice
             ? await Promise.all([
                 apiClient.summary(token, firstHome.id, firstDevice.id),
                 apiClient.metrics(token, firstHome.id, firstDevice.id, 180),
                 apiClient.anomalies(token, firstHome.id),
+                apiClient.liveNilmSummary(token, firstHome.id, firstDevice.id, 500),
               ])
-            : [null, [] as EnergyMetricRead[], [] as AnomalyRead[]];
+            : [null, [] as EnergyMetricRead[], [] as AnomalyRead[], null];
         if (!cancelled) {
           setHomes(nextHomes);
           setDevices(nextDevices);
           setSummary(nextSummary);
           setMetrics(nextMetrics);
           setAnomalies(nextAnomalies);
+          setLiveNilmSummary(nextLiveNilmSummary);
         }
       } catch (caught) {
         if (!cancelled) {
@@ -75,10 +80,11 @@ export function OverviewPage() {
   }, [token]);
 
   useEffect(() => {
-    if (!token || !devices[0]) {
+    if (!token || !homes[0] || !devices[0]) {
       return undefined;
     }
 
+    const selectedHomeId = homes[0].id;
     const selectedDeviceId = devices[0].id;
     const socket = connectMetricsSocket(token, {
       onMetric: (event) => {
@@ -86,6 +92,10 @@ export function OverviewPage() {
           return;
         }
         setMetrics((current) => [event.metric, ...current].slice(0, 240));
+        void apiClient
+          .liveNilmSummary(token, selectedHomeId, selectedDeviceId, 500)
+          .then(setLiveNilmSummary)
+          .catch(() => undefined);
       },
       onStatus: setSocketStatus,
     });
@@ -93,28 +103,34 @@ export function OverviewPage() {
     return () => {
       socket.close();
     };
-  }, [devices, token]);
+  }, [devices, homes, token]);
 
   const latestMetric = metrics[0];
   const statusTone = latestMetric ? "success" : "warning";
   const totalEnergy = (summary?.energy_wh_delta_total ?? 0) / 1000;
   const deviceName = devices[0]?.name ?? "No device selected";
   const liveState = useMemo(() => buildLiveNilmState(metrics, anomalies), [anomalies, metrics]);
-  const topAppliances = liveState.activeAppliances.slice(0, 4);
+  const currentPowerW = liveNilmSummary?.current.current_power_w ?? liveState.currentPowerW;
+  const voltageV = liveNilmSummary?.current.voltage_v ?? liveState.voltageV;
+  const currentA = liveNilmSummary?.current.current_a ?? liveState.currentA;
+  const baseLoadW = liveNilmSummary?.current.base_load_w ?? liveState.baseLoadW;
+  const stepDeltaW = liveNilmSummary?.current.last_event?.step_magnitude_w ?? liveState.stepDeltaW;
+  const liveAppliances = liveNilmSummary?.current.appliance_estimates ?? [];
+  const topAppliances = liveAppliances.length ? liveAppliances.slice(0, 4) : liveState.activeAppliances.slice(0, 4);
 
   const cards = useMemo(
     () => [
       {
         label: "Current power",
-        value: formatWatts(liveState.currentPowerW),
+        value: formatWatts(currentPowerW),
         detail: socketStatus === "online" ? "live WebSocket connected" : "last stored reading",
         tone: "green" as const,
         icon: <Zap size={18} />,
       },
       {
         label: "Voltage",
-        value: `${Math.round(liveState.voltageV)} V`,
-        detail: `${liveState.currentA.toFixed(2)} A current`,
+        value: `${Math.round(voltageV ?? 0)} V`,
+        detail: `${(currentA ?? 0).toFixed(2)} A current`,
         tone: "blue" as const,
         icon: <PlugZap size={18} />,
       },
@@ -128,12 +144,12 @@ export function OverviewPage() {
       {
         label: "Detected now",
         value: String(topAppliances.filter((item) => item.state === "active").length),
-        detail: `base load ${formatWatts(liveState.baseLoadW)}`,
+        detail: `base load ${formatWatts(baseLoadW)}`,
         tone: "amber" as const,
         icon: <Cpu size={18} />,
       },
     ],
-    [liveState, socketStatus, summary, topAppliances, totalEnergy],
+    [baseLoadW, currentA, currentPowerW, socketStatus, summary, topAppliances, totalEnergy, voltageV],
   );
 
   if (loading) {
@@ -196,7 +212,12 @@ export function OverviewPage() {
           )}
         </article>
 
-        <LiveDisaggregationPanel appliances={topAppliances} stepDeltaW={liveState.stepDeltaW} />
+        <LiveDisaggregationPanel
+          appliances={topAppliances}
+          qualityFlags={liveNilmSummary?.signal.quality_flags ?? []}
+          sourceSignal={liveNilmSummary?.signal.source_signal ?? "local fallback"}
+          stepDeltaW={stepDeltaW}
+        />
       </section>
 
       <section className="dashboard-live-grid dashboard-live-grid--secondary">
@@ -209,9 +230,13 @@ export function OverviewPage() {
 
 function LiveDisaggregationPanel({
   appliances,
+  qualityFlags,
+  sourceSignal,
   stepDeltaW,
 }: {
-  appliances: ReturnType<typeof buildLiveNilmState>["activeAppliances"];
+  appliances: Array<LiveNILMApplianceEstimateRead | ReturnType<typeof buildLiveNilmState>["activeAppliances"][number]>;
+  qualityFlags: string[];
+  sourceSignal: string;
   stepDeltaW: number;
 }) {
   return (
@@ -227,20 +252,29 @@ function LiveDisaggregationPanel({
       </div>
       <div className="appliance-estimate-list">
         {appliances.map((appliance) => (
-          <div className={`appliance-estimate is-${appliance.state}`} key={appliance.id}>
+          <div
+            className={`appliance-estimate is-${appliance.state}`}
+            key={"id" in appliance ? appliance.id : appliance.appliance}
+          >
             <div>
               <strong>{appliance.label}</strong>
-              <span>{appliance.reason}</span>
+              <span>{"reason" in appliance ? appliance.reason : appliance.explanation}</span>
             </div>
             <div>
               <b>{Math.round(appliance.confidence * 100)}%</b>
-              <small>{formatWatts(appliance.estimatedPowerW)}</small>
+              <small>
+                {formatWatts(
+                  "estimatedPowerW" in appliance
+                    ? appliance.estimatedPowerW
+                    : appliance.estimated_power_w,
+                )}
+              </small>
             </div>
           </div>
         ))}
       </div>
       <p className="muted">
-        Heuristic step-based estimate for live monitoring. Dataset-grade evaluation stays in NILM Lab.
+        Source: {sourceSignal}. {qualityFlags[0] ?? "Heuristic step-based estimate for live monitoring."}
       </p>
     </article>
   );

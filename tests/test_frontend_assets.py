@@ -54,6 +54,9 @@ def test_frontend_api_client_points_to_local_backend() -> None:
     assert "/analytics/summary" in api_client
     assert "/demo/seed" in api_client
     assert "/demo/live-metric" in api_client
+    assert "/live-nilm/summary" in api_client
+    assert "/live-nilm/current" in api_client
+    assert "/live-nilm/events" in api_client
     assert "updateAnomaly" in api_client
     assert "/nilm/lab/demo" in api_client
     assert "/nilm/lab/catalog" in api_client
@@ -63,6 +66,7 @@ def test_frontend_api_client_points_to_local_backend() -> None:
     assert "/download-guide" in api_client
     assert "/convert" in api_client
     assert "/nilm/lab/report" in api_client
+    assert "/nilm/lab/analysis/run" in api_client
     assert "new WebSocket" in websocket_client
     assert "/metrics/live" in websocket_client
 
@@ -134,7 +138,11 @@ def test_frontend_navigation_separates_live_and_research_workflows() -> None:
     assert "Current disaggregation" in overview
     assert "Live signal interpretation" in live_nilm
     assert "Likely active loads" in live_nilm
-    assert "Generate demo dataset" in simulator
+    assert "Detailed signal analysis" in live_nilm
+    assert "Detected step events" in live_nilm
+    assert "Generate demo workspace" in simulator
+    assert "Kettle event" in simulator
+    assert "Publish selected event" in simulator
     assert "Inspect live update" in simulator
     assert "recommendedAction" in anomalies
     assert "updateAnomaly" in anomalies

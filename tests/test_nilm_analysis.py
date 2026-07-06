@@ -12,10 +12,12 @@ from app.api.routes.nilm import (
     get_nilm_lab_dataset_download_guide,
     get_nilm_lab_dataset_files,
     get_nilm_lab_datasets,
+    run_nilm_lab_analysis,
     convert_nilm_lab_dataset,
     get_nilm_lab_demo,
     get_nilm_lab_report,
 )
+from app.schemas.nilm import NILMLabAnalysisRunRequest
 from app.main import app
 from app.services.nilm_analysis import (
     NILMDetectionConfig,
@@ -65,6 +67,7 @@ def test_nilm_analysis_route_is_registered() -> None:
         == "/nilm/lab/datasets/refit/convert"
     )
     assert str(app.url_path_for("get_nilm_lab_report")) == "/nilm/lab/report"
+    assert str(app.url_path_for("run_nilm_lab_analysis")) == "/nilm/lab/analysis/run"
 
 
 def test_nilm_analysis_detects_power_step_events() -> None:
@@ -158,6 +161,29 @@ async def test_nilm_lab_demo_returns_dataset_overlay() -> None:
     assert response.points[4].predicted_power_w == 2200
     assert response.metrics.mae_w > 0
     assert response.metrics.f1_score == 1
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_analysis_run_returns_guided_result() -> None:
+    response = await run_nilm_lab_analysis(
+        NILMLabAnalysisRunRequest(
+            dataset_id="uk-dale",
+            house_id="house-1",
+            appliance="kettle",
+            analysis_type="baseline_disaggregation",
+            max_samples=12,
+        )
+    )
+
+    assert response.status == "completed"
+    assert response.dataset_id == "uk-dale"
+    assert response.appliance == "kettle"
+    assert response.signal_summary.sample_count == 12
+    assert response.detected_columns.timestamp == "timestamp"
+    assert "aggregate_power_w" in response.detected_columns.power
+    assert response.chart_data
+    assert response.events
+    assert response.limitations
 
 
 @pytest.mark.asyncio

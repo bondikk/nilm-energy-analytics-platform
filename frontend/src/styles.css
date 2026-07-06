@@ -191,6 +191,44 @@ select:focus {
   gap: 12px;
 }
 
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.scenario-option {
+  display: grid;
+  gap: 5px;
+  min-height: 98px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.42);
+  color: var(--text);
+  cursor: pointer;
+  padding: 12px;
+  text-align: left;
+}
+
+.scenario-option:hover,
+.scenario-option.is-selected {
+  border-color: rgba(34, 197, 94, 0.48);
+  background: rgba(34, 197, 94, 0.09);
+}
+
+.scenario-option span,
+.scenario-option small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.form-inline-control {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
 .landing-signal {
   position: relative;
   min-height: 430px;
@@ -1345,7 +1383,8 @@ kbd {
   .dataset-grid,
   .dataset-summary-strip,
   .detected-signal-grid,
-  .model-grid {
+  .model-grid,
+  .scenario-grid {
     grid-template-columns: 1fr;
   }
 
