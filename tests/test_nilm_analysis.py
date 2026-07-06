@@ -8,7 +8,11 @@ from fastapi import HTTPException
 from app.api.routes.nilm import (
     get_nilm_analysis,
     get_nilm_lab_catalog,
+    get_nilm_lab_dataset,
+    get_nilm_lab_dataset_download_guide,
+    get_nilm_lab_dataset_files,
     get_nilm_lab_datasets,
+    convert_nilm_lab_dataset,
     get_nilm_lab_demo,
     get_nilm_lab_report,
 )
@@ -41,8 +45,24 @@ def test_nilm_analysis_route_is_registered() -> None:
     assert str(app.url_path_for("get_nilm_lab_catalog")) == "/nilm/lab/catalog"
     assert str(app.url_path_for("get_nilm_lab_datasets")) == "/nilm/lab/datasets"
     assert (
+        str(app.url_path_for("get_nilm_lab_dataset", dataset="uk-dale"))
+        == "/nilm/lab/datasets/uk-dale"
+    )
+    assert (
+        str(app.url_path_for("get_nilm_lab_dataset_files", dataset="uk-dale"))
+        == "/nilm/lab/datasets/uk-dale/files"
+    )
+    assert (
         str(app.url_path_for("get_nilm_lab_dataset_profile", dataset="refit"))
         == "/nilm/lab/datasets/refit/profile"
+    )
+    assert (
+        str(app.url_path_for("get_nilm_lab_dataset_download_guide", dataset="refit"))
+        == "/nilm/lab/datasets/refit/download-guide"
+    )
+    assert (
+        str(app.url_path_for("convert_nilm_lab_dataset", dataset="refit"))
+        == "/nilm/lab/datasets/refit/convert"
     )
     assert str(app.url_path_for("get_nilm_lab_report")) == "/nilm/lab/report"
 
@@ -166,8 +186,12 @@ async def test_nilm_lab_datasets_describes_scale_and_local_availability() -> Non
 
     uk_dale = inventory.datasets[0]
     assert uk_dale.label == "UK-DALE"
+    assert uk_dale.name == "UK-DALE"
     assert uk_dale.houses == 5
+    assert uk_dale.supported_houses[0] == "house-1"
     assert "kettle" in uk_dale.appliances
+    assert "jack-kelly.com" in uk_dale.official_url
+    assert "redistributing raw files" in uk_dale.license_access_notes
     assert uk_dale.sample_path == "data/samples/uk_dale_house_1_sample.csv"
     assert uk_dale.sample_available is True
     assert uk_dale.raw_path == "data/raw/uk-dale/"
@@ -177,10 +201,33 @@ async def test_nilm_lab_datasets_describes_scale_and_local_availability() -> Non
     assert uk_dale.raw_total_bytes is None or uk_dale.raw_total_bytes >= 0
     assert isinstance(uk_dale.raw_files, list)
     assert isinstance(uk_dale.processed_files, list)
+    assert "convert_uk_dale" in uk_dale.import_command
+    assert uk_dale.limitations
+    assert uk_dale.safe_to_convert_locally is True
 
     refit = inventory.datasets[2]
     assert refit.houses == 20
     assert refit.status == "loader scaffold"
+    assert refit.safe_to_convert_locally is False
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_dataset_detail_files_guide_and_convert() -> None:
+    dataset = await get_nilm_lab_dataset("uk-dale")
+    files = await get_nilm_lab_dataset_files("uk-dale")
+    guide = await get_nilm_lab_dataset_download_guide("uk-dale")
+    conversion = await convert_nilm_lab_dataset("redd")
+
+    assert dataset.id == "uk-dale"
+    assert files.dataset == "uk-dale"
+    assert files.file_count >= 1
+    assert any(file.storage_area == "sample" for file in files.files)
+    assert guide.dataset == "uk-dale"
+    assert guide.instructions
+    assert "data/raw/uk-dale/" in guide.raw_path
+    assert conversion.dataset == "redd"
+    assert conversion.executed is False
+    assert conversion.status == "manual_only"
 
 
 @pytest.mark.asyncio

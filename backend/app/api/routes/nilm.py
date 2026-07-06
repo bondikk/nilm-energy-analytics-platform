@@ -19,16 +19,19 @@ from app.ml.datasets.lab_demo import (
     LAB_DATASET_METADATA,
     LabDatasetMetadata,
     PROJECT_LAB_SAMPLE_PATH,
+    ProjectDatasetFile,
     SUPPORTED_LAB_APPLIANCES,
     SUPPORTED_LAB_DATASETS,
     SUPPORTED_LAB_HOUSES,
     build_lab_demo_rows,
+    dataset_conversion_command,
+    dataset_download_guide,
     project_file_inventory,
     project_path_has_data,
     project_path_exists,
     resolve_project_path,
 )
-from app.ml.datasets.profiling import profile_dataset_file
+from app.ml.datasets.profiling import DatasetFileProfile, profile_dataset_file
 from app.ml.evaluation.reports import build_evaluation_report
 from app.ml.models.baseline_threshold import (
     predict_appliance_power_threshold,
@@ -40,8 +43,11 @@ from app.schemas.nilm import (
     NILMLabApplianceRead,
     NILMLabCatalogRead,
     NILMLabDatasetColumnProfileRead,
+    NILMLabDatasetConversionRead,
+    NILMLabDatasetDownloadGuideRead,
     NILMLabDatasetFileRead,
     NILMLabDatasetFileProfileRead,
+    NILMLabDatasetFilesRead,
     NILMLabDatasetInventoryItemRead,
     NILMLabDatasetProfileRead,
     NILMLabDatasetRead,
@@ -324,71 +330,124 @@ async def get_nilm_lab_datasets() -> NILMLabDatasetsRead:
     )
 
 
+@lab_router.get("/datasets/{dataset}", response_model=NILMLabDatasetInventoryItemRead)
+async def get_nilm_lab_dataset(dataset: str) -> NILMLabDatasetInventoryItemRead:
+    metadata = _get_lab_dataset_metadata(dataset)
+    return _build_dataset_inventory_item(dataset, metadata)
+
+
+@lab_router.get("/datasets/{dataset}/files", response_model=NILMLabDatasetFilesRead)
+async def get_nilm_lab_dataset_files(
+    dataset: str,
+    max_files: Annotated[int, Query(ge=1, le=200)] = 80,
+) -> NILMLabDatasetFilesRead:
+    metadata = _get_lab_dataset_metadata(dataset)
+    files, total_count, total_size_bytes = _dataset_file_inventory(metadata, limit=max_files)
+    return NILMLabDatasetFilesRead(
+        dataset=dataset,
+        dataset_label=LAB_DATASET_LABELS[dataset],
+        file_count=total_count,
+        total_size_bytes=total_size_bytes,
+        files=[NILMLabDatasetFileRead(**file) for file in files],
+    )
+
+
 @lab_router.get("/datasets/{dataset}/profile", response_model=NILMLabDatasetProfileRead)
 async def get_nilm_lab_dataset_profile(
     dataset: str,
     max_files: Annotated[int, Query(ge=1, le=12)] = 6,
+    file_path: Annotated[str | None, Query(max_length=512)] = None,
 ) -> NILMLabDatasetProfileRead:
-    if dataset not in SUPPORTED_LAB_DATASETS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"dataset must be one of: {', '.join(SUPPORTED_LAB_DATASETS)}",
-        )
-
-    metadata = LAB_DATASET_METADATA[dataset]
-    raw_files, raw_file_count, raw_total_bytes = project_file_inventory(
-        metadata["raw_path"],
-        limit=max_files,
+    metadata = _get_lab_dataset_metadata(dataset)
+    dataset_files, dataset_file_count, dataset_total_bytes = _dataset_file_inventory(
+        metadata,
+        limit=max(max_files, 80),
     )
+    if file_path:
+        matching_files = [file for file in dataset_files if file["path"] == file_path]
+        if not matching_files:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="dataset file was not found in the local dataset inventory",
+            )
+        files_to_profile = matching_files
+    else:
+        raw_files, _, _ = project_file_inventory(
+            metadata["raw_path"],
+            limit=max_files,
+        )
+        files_to_profile = list(raw_files[:max_files])
+
     profiles = [
         profile_dataset_file(resolve_project_path(file["path"]))
-        for file in raw_files[:max_files]
+        for file in files_to_profile
     ]
 
     return NILMLabDatasetProfileRead(
         dataset=dataset,
         dataset_label=LAB_DATASET_LABELS[dataset],
-        raw_file_count=raw_file_count,
+        raw_file_count=dataset_file_count,
         profiled_file_count=len(profiles),
-        total_size_bytes=raw_total_bytes,
-        files=[
-            NILMLabDatasetFileProfileRead(
-                name=profile.name,
-                path=profile.path,
-                kind=profile.kind,
-                size_bytes=profile.size_bytes,
-                status=profile.status,
-                row_count=profile.row_count,
-                column_count=profile.column_count,
-                columns=list(profile.columns),
-                preview_rows=list(profile.preview_rows),
-                column_profiles=[
-                    NILMLabDatasetColumnProfileRead(
-                        name=column.name,
-                        kind=column.kind,
-                        non_empty_count=column.non_empty_count,
-                        missing_count=column.missing_count,
-                        min_value=column.min_value,
-                        max_value=column.max_value,
-                        mean_value=column.mean_value,
-                    )
-                    for column in profile.column_profiles
-                ],
-                start_time=profile.start_time,
-                end_time=profile.end_time,
-                structure=[
-                    NILMLabDatasetStructureNodeRead(
-                        path=node.path,
-                        kind=node.kind,
-                        shape=node.shape,
-                        dtype=node.dtype,
-                    )
-                    for node in profile.structure
-                ],
-                notes=list(profile.notes),
-            )
-            for profile in profiles
-        ],
+        total_size_bytes=dataset_total_bytes,
+        limits={
+            "max_files": max_files,
+            "csv_row_limit": profiles[0].profiled_row_limit if profiles else None,
+        },
+        files=[_build_dataset_file_profile_read(profile) for profile in profiles],
+    )
+
+
+@lab_router.get("/datasets/{dataset}/download-guide", response_model=NILMLabDatasetDownloadGuideRead)
+async def get_nilm_lab_dataset_download_guide(dataset: str) -> NILMLabDatasetDownloadGuideRead:
+    metadata = _get_lab_dataset_metadata(dataset)
+    return NILMLabDatasetDownloadGuideRead(
+        dataset=dataset,
+        dataset_label=LAB_DATASET_LABELS[dataset],
+        official_url=metadata["official_url"],
+        license_access_notes=metadata["license_access_notes"],
+        raw_path=metadata["raw_path"],
+        processed_path=metadata["processed_path"],
+        sample_path=metadata["sample_path"] or None,
+        instructions=list(dataset_download_guide(dataset)),
+        import_command=dataset_conversion_command(dataset),
+        limitations=list(metadata["limitations"]),
+    )
+
+
+@lab_router.post("/datasets/{dataset}/convert", response_model=NILMLabDatasetConversionRead)
+async def convert_nilm_lab_dataset(dataset: str) -> NILMLabDatasetConversionRead:
+    metadata = _get_lab_dataset_metadata(dataset)
+    command = dataset_conversion_command(dataset)
+    raw_available = project_path_has_data(metadata["raw_path"])
+    runnable = metadata["safe_to_convert_locally"] and raw_available
+    if runnable:
+        message = (
+            "Local raw files were found and the converter command is safe to run from a "
+            "developer shell. The API returns the command instead of starting a potentially "
+            "long dataset conversion inside the web request."
+        )
+        response_status = "ready_for_local_run"
+    elif metadata["safe_to_convert_locally"]:
+        message = (
+            "The converter is implemented, but raw files are missing. Download or extract "
+            f"the dataset under {metadata['raw_path']} first."
+        )
+        response_status = "missing_raw_files"
+    else:
+        message = (
+            "Automatic conversion is not implemented for this dataset yet. Use the guide "
+            "and keep raw files outside git."
+        )
+        response_status = "manual_only"
+
+    return NILMLabDatasetConversionRead(
+        dataset=dataset,
+        dataset_label=LAB_DATASET_LABELS[dataset],
+        runnable=runnable,
+        executed=False,
+        status=response_status,
+        command=command,
+        message=message,
     )
 
 
@@ -404,13 +463,17 @@ def _build_dataset_inventory_item(
     return NILMLabDatasetInventoryItemRead(
         id=dataset,
         label=LAB_DATASET_LABELS[dataset],
+        name=metadata["name"],
         description=LAB_DATASET_DESCRIPTIONS[dataset],
         scope=metadata["scope"],
         houses=metadata["houses"],
+        supported_houses=list(metadata["supported_houses"]),
         appliances=list(metadata["appliances"]),
         sample_period=metadata["sample_period"],
         estimated_scale=metadata["estimated_scale"],
         public_reference=metadata["public_reference"],
+        official_url=metadata["official_url"],
+        license_access_notes=metadata["license_access_notes"],
         raw_path=metadata["raw_path"],
         processed_path=metadata["processed_path"],
         sample_path=metadata["sample_path"] or None,
@@ -425,4 +488,86 @@ def _build_dataset_inventory_item(
         raw_files=[NILMLabDatasetFileRead(**file) for file in raw_files],
         processed_files=[NILMLabDatasetFileRead(**file) for file in processed_files],
         actions=list(metadata["actions"]),
+        available_actions=list(metadata["actions"]),
+        import_command=metadata["import_command"],
+        limitations=list(metadata["limitations"]),
+        safe_to_convert_locally=metadata["safe_to_convert_locally"],
+    )
+
+
+def _get_lab_dataset_metadata(dataset: str) -> LabDatasetMetadata:
+    if dataset not in SUPPORTED_LAB_DATASETS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"dataset must be one of: {', '.join(SUPPORTED_LAB_DATASETS)}",
+        )
+    return LAB_DATASET_METADATA[dataset]
+
+
+def _dataset_file_inventory(
+    metadata: LabDatasetMetadata,
+    *,
+    limit: int,
+) -> tuple[tuple[ProjectDatasetFile, ...], int, int | None]:
+    files: list[ProjectDatasetFile] = []
+    total_count = 0
+    total_size = 0
+    has_unknown_size = False
+
+    for dataset_path in (metadata["sample_path"], metadata["raw_path"], metadata["processed_path"]):
+        dataset_files, count, size_bytes = project_file_inventory(dataset_path, limit=limit)
+        total_count += count
+        if size_bytes is None and count:
+            has_unknown_size = True
+        elif size_bytes is not None:
+            total_size += size_bytes
+        remaining = max(0, limit - len(files))
+        files.extend(dataset_files[:remaining])
+
+    return tuple(files), total_count, None if has_unknown_size else total_size
+
+
+def _build_dataset_file_profile_read(profile: DatasetFileProfile) -> NILMLabDatasetFileProfileRead:
+    return NILMLabDatasetFileProfileRead(
+        name=profile.name,
+        path=profile.path,
+        kind=profile.kind,
+        size_bytes=profile.size_bytes,
+        status=profile.status,
+        profiled_row_limit=profile.profiled_row_limit,
+        profiled_row_count=profile.profiled_row_count,
+        truncated=profile.truncated,
+        row_count=profile.row_count,
+        column_count=profile.column_count,
+        columns=list(profile.columns),
+        detected_timestamp_column=profile.detected_timestamp_column,
+        detected_power_columns=list(profile.detected_power_columns),
+        detected_current_columns=list(profile.detected_current_columns),
+        detected_voltage_columns=list(profile.detected_voltage_columns),
+        detected_appliance_columns=list(profile.detected_appliance_columns),
+        preview_rows=list(profile.preview_rows),
+        column_profiles=[
+            NILMLabDatasetColumnProfileRead(
+                name=column.name,
+                kind=column.kind,
+                non_empty_count=column.non_empty_count,
+                missing_count=column.missing_count,
+                min_value=column.min_value,
+                max_value=column.max_value,
+                mean_value=column.mean_value,
+            )
+            for column in profile.column_profiles
+        ],
+        start_time=profile.start_time,
+        end_time=profile.end_time,
+        structure=[
+            NILMLabDatasetStructureNodeRead(
+                path=node.path,
+                kind=node.kind,
+                shape=node.shape,
+                dtype=node.dtype,
+            )
+            for node in profile.structure
+        ],
+        notes=list(profile.notes),
     )

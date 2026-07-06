@@ -39,6 +39,29 @@ def test_parse_ingestion_payload_preserves_raw_payload() -> None:
     assert parsed.raw_payload == raw_payload
 
 
+def test_parse_ingestion_payload_normalizes_legacy_esp32_payload() -> None:
+    raw_payload = {
+        "device_id": "esp32-01",
+        "timestamp": "2026-07-06T10:00:00Z",
+        "i_rms": 0.42,
+        "v_rms": 230.0,
+        "s_est_va": 96.6,
+        "sample_rate": 1000,
+        "source": "esp32_ads1256",
+    }
+
+    parsed = parse_ingestion_payload(json.dumps(raw_payload))
+
+    assert parsed.ts == datetime(2026, 7, 6, 10, 0, tzinfo=UTC)
+    assert parsed.device_id is None
+    assert parsed.device_external_id == "esp32-01"
+    assert parsed.current_a == 0.42
+    assert parsed.voltage_v == 230.0
+    assert parsed.apparent_power_va == 96.6
+    assert parsed.active_power_w is None
+    assert parsed.raw_payload == raw_payload
+
+
 def test_ingestion_payload_requires_device_identifier() -> None:
     with pytest.raises(ValidationError):
         IngestionMetricPayload(ts=datetime(2026, 7, 2, 12, 0, tzinfo=UTC))

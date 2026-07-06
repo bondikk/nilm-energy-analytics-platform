@@ -186,6 +186,12 @@ def test_dataset_csv_profiler_summarizes_raw_power_file(tmp_path: Path) -> None:
     assert profile.columns == ("Time", "Aggregate", "Fridge", "Kettle", "Issues")
     assert profile.start_time is not None
     assert profile.end_time is not None
+    assert profile.detected_timestamp_column == "Time"
+    assert profile.detected_power_columns == ("Aggregate",)
+    assert profile.detected_appliance_columns == ("Fridge", "Kettle")
+    assert profile.profiled_row_limit == 250_000
+    assert profile.profiled_row_count == 3
+    assert profile.truncated is False
     assert profile.preview_rows[0]["Aggregate"] == "100"
 
     aggregate = next(column for column in profile.column_profiles if column.name == "Aggregate")

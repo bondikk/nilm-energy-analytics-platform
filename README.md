@@ -25,6 +25,7 @@ view with:
 - Today vs Yesterday comparison overlay
 - anomaly timeline and triage workflow
 - MQTT to Redis Streams to TimescaleDB ingestion pipeline
+- ESP32 ADS1256 lab firmware scaffold and payload compatibility adapter
 - public dataset conversion for UK-DALE, REDD, and REFIT experiments
 - baseline NILM research module metrics
 - NILM signal analysis for detecting load step events from meter readings
@@ -129,18 +130,25 @@ flowchart LR
 - Alembic migrations executed on backend container startup.
 - Homes, devices, energy metrics, analytics summary, anomalies, and demo seed APIs.
 - MQTT ingestion path: Mosquitto -> Redis Streams -> metrics writer -> database.
+- ESP32 ADS1256 firmware scaffold with normalized MQTT telemetry payloads and
+  no committed device secrets.
 - Redis Pub/Sub and `/metrics/live` WebSocket for live metric events.
 - React + TypeScript + Vite frontend with public landing page and authenticated dashboard shell.
 - Typed frontend API client, loading skeletons, empty states, error states, and command palette.
 - NILM signal analysis endpoint for step-change detection over stored meter readings.
 - Baseline NILM research module with unified CSV schema, sample UK-DALE-style data, threshold baseline, and evaluation metrics.
-- Dataset Library API and dashboard section for UK-DALE, REDD, and REFIT scale, local file status, and import steps.
+- Dataset Library API and dashboard explorer for UK-DALE, REDD, and REFIT
+  metadata, local file status, file browsing, profiling, import guides, and
+  conversion commands.
 - NILM Lab demo page with aggregate, ground-truth, and predicted appliance power overlay.
 - Reproducible NILM Lab report endpoint.
 
 ### Partially implemented
 
 - Public NILM dataset support: UK-DALE conversion path exists; REDD and REFIT loaders are scaffolds.
+- Hardware ingestion: ESP32 + ADS1256 firmware and backend compatibility are
+  available for lab integration; physical flashing and calibration are not
+  validated by automated tests.
 - Appliance-level prediction: rule-based baseline exists; trained ML and deep learning models are not production-ready.
 - Anomaly workflow: backend records and frontend list exist; advanced investigation and alert policy management are still basic.
 - Live dashboard updates: backend WebSocket exists; full frontend reconnect and cross-page realtime UX needs more hardening.
@@ -151,8 +159,7 @@ flowchart LR
 - Experiment run tracking with saved configs, train/test split metadata, metrics, and artifacts.
 - Random Forest / logistic-regression NILM baselines.
 - Seq2Point CNN prototype after baseline evaluation is stable.
-- Dataset download/import guides for full UK-DALE, REDD, and REFIT workflows.
-- Frontend dataset exploration views and model comparison reports.
+- Frontend model comparison reports.
 - User-facing recommendations based on measured anomalies and NILM events.
 - Deployment documentation for a non-local environment.
 
@@ -160,6 +167,7 @@ flowchart LR
 
 - Production-grade commercial billing, tariff engine, or invoicing.
 - Production MQTT device fleet management.
+- Certified hardware metering or billing-grade accuracy.
 - Online multi-appliance NILM inference from live MQTT streams.
 - Model retraining orchestration or model registry.
 - Mobile app.
@@ -179,6 +187,8 @@ flowchart LR
 
 - Dataset, house, and appliance selectors backed by the FastAPI NILM catalog.
 - Dataset Library cards for UK-DALE, REDD, and REFIT with local raw/processed/sample availability.
+- Dataset detail, file browser, CSV/HDF5 profile view, download guide, and
+  conversion command surfaces.
 - Overlay chart for aggregate power, appliance ground truth, and model prediction.
 - Metrics for MAE, F1-score, precision, recall, sample count, and source file.
 - Markdown report export for reproducible NILM experiments.
@@ -238,6 +248,10 @@ inference from MQTT streams.
 ### Streaming Ingestion
 
 - MQTT consumer subscribes to `voltpulse/+/devices/+/metrics`.
+- ESP32 lab firmware publishes to
+  `voltpulse/homes/demo/devices/esp32-ads1256-01/metrics` by default.
+- Backend ingestion accepts native VoltPulse payloads and the legacy reference
+  firmware fields `timestamp`, `device_id`, `i_rms`, `v_rms`, and `s_est_va`.
 - The dashboard Simulator can publish a manual or spike reading to Mosquitto.
 - Valid IoT readings are written to the `voltpulse.metrics.ingest` Redis Stream.
 - Metrics writer consumes the stream as a Redis consumer group.
@@ -247,6 +261,12 @@ inference from MQTT streams.
 - Written metrics are published to a Redis Pub/Sub channel for live WebSocket
   delivery.
 - Successfully written stream messages are acknowledged.
+
+### Documentation
+
+- Dataset workflow: [docs/datasets.md](docs/datasets.md)
+- Hardware prototype: [docs/hardware.md](docs/hardware.md)
+- NILM method notes: [docs/NILM_METHOD.md](docs/NILM_METHOD.md)
 
 ### Live Metrics WebSocket
 

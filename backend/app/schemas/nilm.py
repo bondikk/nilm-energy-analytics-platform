@@ -137,18 +137,23 @@ class NILMLabDatasetFileRead(BaseModel):
     kind: str
     size_bytes: int | None
     is_symlink: bool
+    storage_area: str = "file"
 
 
 class NILMLabDatasetInventoryItemRead(BaseModel):
     id: str
     label: str
+    name: str
     description: str
     scope: str
     houses: int
+    supported_houses: list[str]
     appliances: list[str]
     sample_period: str
     estimated_scale: str
     public_reference: str
+    official_url: str
+    license_access_notes: str
     raw_path: str
     processed_path: str
     sample_path: str | None
@@ -163,6 +168,10 @@ class NILMLabDatasetInventoryItemRead(BaseModel):
     raw_files: list[NILMLabDatasetFileRead]
     processed_files: list[NILMLabDatasetFileRead]
     actions: list[str]
+    available_actions: list[str]
+    import_command: str
+    limitations: list[str]
+    safe_to_convert_locally: bool
 
 
 class NILMLabDatasetsRead(BaseModel):
@@ -194,9 +203,17 @@ class NILMLabDatasetFileProfileRead(BaseModel):
     kind: str
     size_bytes: int | None
     status: str
+    profiled_row_limit: int | None
+    profiled_row_count: int | None
+    truncated: bool
     row_count: int | None
     column_count: int | None
     columns: list[str]
+    detected_timestamp_column: str | None
+    detected_power_columns: list[str]
+    detected_current_columns: list[str]
+    detected_voltage_columns: list[str]
+    detected_appliance_columns: list[str]
     preview_rows: list[dict[str, str]]
     column_profiles: list[NILMLabDatasetColumnProfileRead]
     start_time: datetime | None
@@ -211,7 +228,39 @@ class NILMLabDatasetProfileRead(BaseModel):
     raw_file_count: int
     profiled_file_count: int
     total_size_bytes: int | None
+    limits: dict[str, int | None]
     files: list[NILMLabDatasetFileProfileRead]
+
+
+class NILMLabDatasetFilesRead(BaseModel):
+    dataset: str
+    dataset_label: str
+    file_count: int
+    total_size_bytes: int | None
+    files: list[NILMLabDatasetFileRead]
+
+
+class NILMLabDatasetDownloadGuideRead(BaseModel):
+    dataset: str
+    dataset_label: str
+    official_url: str
+    license_access_notes: str
+    raw_path: str
+    processed_path: str
+    sample_path: str | None
+    instructions: list[str]
+    import_command: str
+    limitations: list[str]
+
+
+class NILMLabDatasetConversionRead(BaseModel):
+    dataset: str
+    dataset_label: str
+    runnable: bool
+    executed: bool
+    status: str
+    command: str
+    message: str
 
 
 class NILMLabHouseRead(BaseModel):

@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     mqtt_host: str = "localhost"
     mqtt_port: int = 1883
     mqtt_metrics_topic: str = "voltpulse/+/devices/+/metrics"
+    ingestion_auto_create_demo_devices: bool = True
+    ingestion_demo_home_name: str = "Demo Apartment"
+    ingestion_demo_user_email: str = "demo@voltpulse.local"
 
     nilm_anomaly_detection_enabled: bool = True
     nilm_anomaly_min_step_w: float = 500.0

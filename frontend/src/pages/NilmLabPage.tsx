@@ -32,8 +32,11 @@ import { apiClient } from "../services/apiClient";
 import type {
   NILMLabApplianceRead,
   NILMLabCatalogRead,
+  NILMLabDatasetConversionRead,
+  NILMLabDatasetDownloadGuideRead,
   NILMLabDatasetFileRead,
   NILMLabDatasetFileProfileRead,
+  NILMLabDatasetFilesRead,
   NILMLabDatasetInventoryItemRead,
   NILMLabDatasetProfileRead,
   NILMLabDatasetsRead,
@@ -330,6 +333,85 @@ function DatasetLibraryPanel({
   onSelectDataset: (dataset: string) => void;
 }) {
   const selected = datasets.find((dataset) => dataset.id === selectedDataset) ?? datasets[0];
+  const [filesResponse, setFilesResponse] = useState<NILMLabDatasetFilesRead | null>(null);
+  const [guide, setGuide] = useState<NILMLabDatasetDownloadGuideRead | null>(null);
+  const [conversion, setConversion] = useState<NILMLabDatasetConversionRead | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<NILMLabDatasetFileProfileRead | null>(
+    null,
+  );
+  const [actionBusy, setActionBusy] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  useEffect(() => {
+    setFilesResponse(null);
+    setGuide(null);
+    setConversion(null);
+    setSelectedProfile(null);
+    setActionError("");
+  }, [selectedDataset]);
+
+  async function openFiles() {
+    setActionBusy("files");
+    setActionError("");
+    try {
+      setFilesResponse(await apiClient.nilmDatasetFiles(selected.id));
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Unable to load dataset files");
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  async function openGuide() {
+    setActionBusy("guide");
+    setActionError("");
+    try {
+      setGuide(await apiClient.nilmDatasetDownloadGuide(selected.id));
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Unable to load import guide");
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  async function profileFile(path: string) {
+    setActionBusy(path);
+    setActionError("");
+    try {
+      const profile = await apiClient.nilmDatasetProfile(selected.id, 1, path);
+      setSelectedProfile(profile.files[0] ?? null);
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Unable to profile dataset file");
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  async function requestConversionCommand() {
+    setActionBusy("convert");
+    setActionError("");
+    try {
+      setConversion(await apiClient.nilmDatasetConvert(selected.id));
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error ? caught.message : "Unable to prepare conversion command",
+      );
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  async function runPrimaryAction() {
+    if (selected.sample_available && selected.sample_path) {
+      await profileFile(selected.sample_path);
+      return;
+    }
+    if (selected.raw_available || selected.processed_available) {
+      await openFiles();
+      return;
+    }
+    await openGuide();
+  }
 
   return (
     <section className="panel dataset-library">
@@ -379,6 +461,7 @@ function DatasetLibraryPanel({
             </a>
           </div>
           <p>{selected.description}</p>
+          <DatasetStatusBadges dataset={selected} />
 
           <div className="dataset-summary-strip">
             <DatasetAvailability
@@ -427,6 +510,64 @@ function DatasetLibraryPanel({
             </div>
           </dl>
 
+          <dl className="definition-list">
+            <div>
+              <dt>Access notes</dt>
+              <dd>{selected.license_access_notes}</dd>
+            </div>
+            <div>
+              <dt>Conversion command</dt>
+              <dd>{selected.import_command}</dd>
+            </div>
+          </dl>
+
+          <div className="dataset-action-row">
+            <button
+              className="button button--primary"
+              disabled={actionBusy !== ""}
+              onClick={runPrimaryAction}
+              type="button"
+            >
+              <FolderOpen size={16} />
+              {primaryDatasetActionLabel(selected)}
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={actionBusy !== ""}
+              onClick={openFiles}
+              type="button"
+            >
+              <Database size={16} />
+              View files
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={actionBusy !== ""}
+              onClick={openGuide}
+              type="button"
+            >
+              <FileText size={16} />
+              Import guide
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={actionBusy !== ""}
+              onClick={requestConversionCommand}
+              type="button"
+            >
+              <RefreshCw size={16} />
+              Conversion command
+            </button>
+          </div>
+
+          {actionError ? <div className="dataset-empty-row">{actionError}</div> : null}
+          {actionBusy ? (
+            <div className="dataset-empty-row">
+              <RefreshCw size={16} />
+              Loading dataset details
+            </div>
+          ) : null}
+
           <div className="dataset-file-grid">
             <DatasetFileTable
               emptyMessage="Raw files are not connected in data/raw yet."
@@ -440,6 +581,26 @@ function DatasetLibraryPanel({
             />
           </div>
 
+          {filesResponse ? (
+            <DatasetFileBrowserPanel
+              filesResponse={filesResponse}
+              busyKey={actionBusy}
+              selectedProfilePath={selectedProfile?.path ?? null}
+              onProfileFile={profileFile}
+            />
+          ) : null}
+
+          {selectedProfile ? (
+            <section className="dataset-profile-focus">
+              <span className="eyebrow">Selected file profile</span>
+              <RawDatasetFileProfile file={selectedProfile} />
+            </section>
+          ) : null}
+
+          {guide ? <DatasetGuidePanel guide={guide} /> : null}
+
+          {conversion ? <DatasetConversionPanel conversion={conversion} /> : null}
+
           <div className="dataset-next-actions">
             <span className="eyebrow">Next analysis steps</span>
             <ol className="dataset-actions">
@@ -451,6 +612,172 @@ function DatasetLibraryPanel({
         </article>
       </div>
       <p className="muted">{ingestionNote}</p>
+    </section>
+  );
+}
+
+function DatasetStatusBadges({ dataset }: { dataset: NILMLabDatasetInventoryItemRead }) {
+  const statuses = [
+    {
+      label: dataset.sample_available ? "sample ready" : "sample missing",
+      tone: dataset.sample_available ? "success" : undefined,
+    },
+    {
+      label: dataset.raw_available ? "raw ready" : "raw missing",
+      tone: dataset.raw_available ? "success" : "warning",
+    },
+    {
+      label: dataset.processed_available ? "processed ready" : "needs conversion",
+      tone: dataset.processed_available ? "success" : "warning",
+    },
+  ] as const;
+
+  return (
+    <div className="dataset-status-badges" aria-label="Dataset local status">
+      {statuses.map((status) => (
+        <StatusPill key={status.label} tone={status.tone}>
+          {status.label}
+        </StatusPill>
+      ))}
+    </div>
+  );
+}
+
+function DatasetFileBrowserPanel({
+  busyKey,
+  filesResponse,
+  selectedProfilePath,
+  onProfileFile,
+}: {
+  busyKey: string;
+  filesResponse: NILMLabDatasetFilesRead;
+  selectedProfilePath: string | null;
+  onProfileFile: (path: string) => void;
+}) {
+  return (
+    <section className="dataset-browser-panel">
+      <div className="dataset-file-panel__heading">
+        <div>
+          <span className="eyebrow">Dataset file browser</span>
+          <h3>{filesResponse.dataset_label} files</h3>
+        </div>
+        <StatusPill>
+          {filesResponse.file_count} files · {formatBytes(filesResponse.total_size_bytes)}
+        </StatusPill>
+      </div>
+      {filesResponse.files.length ? (
+        <div className="table-wrap">
+          <table className="data-table data-table--compact">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Area</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Profile status</th>
+                <th>Path</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filesResponse.files.map((file) => {
+                const profileable = isProfileableDatasetFile(file);
+                return (
+                  <tr key={file.path}>
+                    <td>{file.name}</td>
+                    <td>{file.storage_area}</td>
+                    <td>{file.is_symlink ? `${file.kind} link` : file.kind}</td>
+                    <td>{formatBytes(file.size_bytes)}</td>
+                    <td>{profileable ? "profileable" : "unsupported"}</td>
+                    <td>{file.path}</td>
+                    <td>
+                      <button
+                        className="table-icon-button"
+                        disabled={!profileable || busyKey !== ""}
+                        onClick={() => onProfileFile(file.path)}
+                        title={profileable ? "Profile file" : "No profiler for this file type"}
+                        type="button"
+                      >
+                        {busyKey === file.path || selectedProfilePath === file.path ? (
+                          <RefreshCw size={15} />
+                        ) : (
+                          <FileText size={15} />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="dataset-empty-row">No local files are available for this dataset.</div>
+      )}
+    </section>
+  );
+}
+
+function DatasetGuidePanel({ guide }: { guide: NILMLabDatasetDownloadGuideRead }) {
+  return (
+    <section className="dataset-guide-panel">
+      <div className="dataset-file-panel__heading">
+        <div>
+          <span className="eyebrow">Import guide</span>
+          <h3>{guide.dataset_label}</h3>
+        </div>
+        <a className="button button--secondary" href={guide.official_url} rel="noreferrer" target="_blank">
+          <FileText size={16} />
+          Official source
+        </a>
+      </div>
+      <p>{guide.license_access_notes}</p>
+      <ol className="dataset-actions">
+        {guide.instructions.map((instruction) => (
+          <li key={instruction}>{instruction}</li>
+        ))}
+      </ol>
+      <dl className="definition-list">
+        <div>
+          <dt>Raw path</dt>
+          <dd>{guide.raw_path}</dd>
+        </div>
+        <div>
+          <dt>Processed path</dt>
+          <dd>{guide.processed_path}</dd>
+        </div>
+        <div>
+          <dt>Command</dt>
+          <dd>{guide.import_command}</dd>
+        </div>
+      </dl>
+      <div className="profile-notes">
+        {guide.limitations.map((limitation) => (
+          <p key={limitation}>{limitation}</p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DatasetConversionPanel({
+  conversion,
+}: {
+  conversion: NILMLabDatasetConversionRead;
+}) {
+  return (
+    <section className="dataset-guide-panel">
+      <div className="dataset-file-panel__heading">
+        <div>
+          <span className="eyebrow">Conversion</span>
+          <h3>{conversion.dataset_label}</h3>
+        </div>
+        <StatusPill tone={conversion.runnable ? "success" : "warning"}>
+          {conversion.status}
+        </StatusPill>
+      </div>
+      <p>{conversion.message}</p>
+      <pre className="command-snippet">{conversion.command}</pre>
     </section>
   );
 }
@@ -676,6 +1003,8 @@ function RawDatasetFileProfile({ file }: { file: NILMLabDatasetFileProfileRead }
         </div>
       </dl>
 
+      <DetectedSignalSummary file={file} />
+
       {file.columns.length ? (
         <div className="column-cloud" aria-label="Dataset columns">
           {file.columns.slice(0, 24).map((column) => (
@@ -702,6 +1031,35 @@ function RawDatasetFileProfile({ file }: { file: NILMLabDatasetFileProfileRead }
         </div>
       ) : null}
     </article>
+  );
+}
+
+function DetectedSignalSummary({ file }: { file: NILMLabDatasetFileProfileRead }) {
+  const summary = [
+    ["Timestamp", file.detected_timestamp_column ?? "-"],
+    ["Power", formatColumnList(file.detected_power_columns)],
+    ["Current", formatColumnList(file.detected_current_columns)],
+    ["Voltage", formatColumnList(file.detected_voltage_columns)],
+    ["Appliances", formatColumnList(file.detected_appliance_columns)],
+    [
+      "Profiled rows",
+      file.profiled_row_count === null
+        ? "-"
+        : `${formatCount(file.profiled_row_count)}${
+            file.truncated ? ` of ${formatCount(file.row_count)}` : ""
+          }`,
+    ],
+  ];
+
+  return (
+    <dl className="detected-signal-grid">
+      {summary.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -949,12 +1307,28 @@ function PredictionWorkspace({
               <dd>{selectedModel?.input_signal ?? "aggregate active power window"}</dd>
             </div>
             <div>
+              <dt>Aggregate power</dt>
+              <dd>Whole-home active power from the selected dataset sample.</dd>
+            </div>
+            <div>
+              <dt>Ground truth</dt>
+              <dd>Measured appliance channel used as the evaluation target.</dd>
+            </div>
+            <div>
               <dt>Output</dt>
-              <dd>{selectedModel?.output_signal ?? "appliance active power"}</dd>
+              <dd>{selectedModel?.output_signal ?? "appliance active power"} baseline prediction.</dd>
+            </div>
+            <div>
+              <dt>Absolute error</dt>
+              <dd>Point-level difference between ground truth and baseline prediction.</dd>
             </div>
             <div>
               <dt>Nominal appliance power</dt>
               <dd>{formatWatts(selectedAppliance?.nominal_power_w ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>Limitations</dt>
+              <dd>Rule-based step detection on a small sample; not production NILM inference.</dd>
             </div>
           </dl>
         </article>
@@ -1090,6 +1464,20 @@ function DatasetReadiness({ dataset }: { dataset: NILMLabDatasetInventoryItemRea
   return <StatusPill tone="danger">missing raw</StatusPill>;
 }
 
+function primaryDatasetActionLabel(dataset: NILMLabDatasetInventoryItemRead) {
+  if (dataset.sample_available && dataset.sample_path) {
+    return "Open sample";
+  }
+  if (dataset.raw_available || dataset.processed_available) {
+    return "View files";
+  }
+  return "Import guide";
+}
+
+function isProfileableDatasetFile(file: NILMLabDatasetFileRead) {
+  return ["csv", "h5", "hdf5"].includes(file.kind.toLowerCase());
+}
+
 function pipelineStatusLabel(state: "ready" | "missing" | "optional") {
   if (state === "ready") {
     return "Ready";
@@ -1138,6 +1526,13 @@ function formatNumber(value: number | null) {
   return value.toLocaleString(undefined, {
     maximumFractionDigits: Math.abs(value) >= 100 ? 1 : 3,
   });
+}
+
+function formatColumnList(columns: string[]) {
+  if (!columns.length) {
+    return "-";
+  }
+  return columns.slice(0, 5).join(", ") + (columns.length > 5 ? ` +${columns.length - 5}` : "");
 }
 
 function formatDateTime(value: string | null) {

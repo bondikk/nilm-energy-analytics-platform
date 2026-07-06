@@ -49,6 +49,7 @@ htmlcov/
 
 # Alembic / DB temporary files
 *.sqlite
+*.sqlite3
 *.db
 
 # Docker
@@ -72,17 +73,22 @@ data/
 data/*
 !data/raw/
 !data/processed/
+!data/exports/
 !data/samples/
-data/raw/**
-data/processed/**
+data/raw/*
+data/processed/*
+data/exports/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
-!data/samples/.gitkeep
-!data/samples/*.csv
+!data/exports/.gitkeep
+!data/samples/**
 /datasets/
 exports/
 tmp/
 temp/
+
+# Firmware local credentials
+firmware/**/secrets.h
 
 # MQTT / Mosquitto local data if accidentally created outside Docker volume
 mosquitto/data/

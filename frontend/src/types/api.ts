@@ -148,18 +148,23 @@ export interface NILMLabDatasetFileRead {
   kind: string;
   size_bytes: number | null;
   is_symlink: boolean;
+  storage_area: string;
 }
 
 export interface NILMLabDatasetInventoryItemRead {
   id: string;
   label: string;
+  name: string;
   description: string;
   scope: string;
   houses: number;
+  supported_houses: string[];
   appliances: string[];
   sample_period: string;
   estimated_scale: string;
   public_reference: string;
+  official_url: string;
+  license_access_notes: string;
   raw_path: string;
   processed_path: string;
   sample_path: string | null;
@@ -174,6 +179,10 @@ export interface NILMLabDatasetInventoryItemRead {
   raw_files: NILMLabDatasetFileRead[];
   processed_files: NILMLabDatasetFileRead[];
   actions: string[];
+  available_actions: string[];
+  import_command: string;
+  limitations: string[];
+  safe_to_convert_locally: boolean;
 }
 
 export interface NILMLabDatasetsRead {
@@ -205,9 +214,17 @@ export interface NILMLabDatasetFileProfileRead {
   kind: string;
   size_bytes: number | null;
   status: string;
+  profiled_row_limit: number | null;
+  profiled_row_count: number | null;
+  truncated: boolean;
   row_count: number | null;
   column_count: number | null;
   columns: string[];
+  detected_timestamp_column: string | null;
+  detected_power_columns: string[];
+  detected_current_columns: string[];
+  detected_voltage_columns: string[];
+  detected_appliance_columns: string[];
   preview_rows: Array<Record<string, string>>;
   column_profiles: NILMLabDatasetColumnProfileRead[];
   start_time: string | null;
@@ -222,7 +239,39 @@ export interface NILMLabDatasetProfileRead {
   raw_file_count: number;
   profiled_file_count: number;
   total_size_bytes: number | null;
+  limits: Record<string, number | null>;
   files: NILMLabDatasetFileProfileRead[];
+}
+
+export interface NILMLabDatasetFilesRead {
+  dataset: string;
+  dataset_label: string;
+  file_count: number;
+  total_size_bytes: number | null;
+  files: NILMLabDatasetFileRead[];
+}
+
+export interface NILMLabDatasetDownloadGuideRead {
+  dataset: string;
+  dataset_label: string;
+  official_url: string;
+  license_access_notes: string;
+  raw_path: string;
+  processed_path: string;
+  sample_path: string | null;
+  instructions: string[];
+  import_command: string;
+  limitations: string[];
+}
+
+export interface NILMLabDatasetConversionRead {
+  dataset: string;
+  dataset_label: string;
+  runnable: boolean;
+  executed: boolean;
+  status: string;
+  command: string;
+  message: string;
 }
 
 export interface NILMLabReportRead {

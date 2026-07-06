@@ -7,6 +7,9 @@ import type {
   EnergySummaryRead,
   HomeRead,
   NILMLabCatalogRead,
+  NILMLabDatasetConversionRead,
+  NILMLabDatasetDownloadGuideRead,
+  NILMLabDatasetFilesRead,
   NILMLabDatasetProfileRead,
   NILMLabDatasetsRead,
   NILMLabDemoRead,
@@ -114,9 +117,24 @@ export const apiClient = {
   nilmDatasets() {
     return request<NILMLabDatasetsRead>("/nilm/lab/datasets");
   },
-  nilmDatasetProfile(dataset: string, maxFiles = 6) {
-    return request<NILMLabDatasetProfileRead>(`/nilm/lab/datasets/${dataset}/profile`, {
+  nilmDatasetFiles(dataset: string, maxFiles = 80) {
+    return request<NILMLabDatasetFilesRead>(`/nilm/lab/datasets/${dataset}/files`, {
       query: { max_files: maxFiles },
+    });
+  },
+  nilmDatasetProfile(dataset: string, maxFiles = 6, filePath?: string) {
+    return request<NILMLabDatasetProfileRead>(`/nilm/lab/datasets/${dataset}/profile`, {
+      query: { max_files: maxFiles, file_path: filePath },
+    });
+  },
+  nilmDatasetDownloadGuide(dataset: string) {
+    return request<NILMLabDatasetDownloadGuideRead>(
+      `/nilm/lab/datasets/${dataset}/download-guide`,
+    );
+  },
+  nilmDatasetConvert(dataset: string) {
+    return request<NILMLabDatasetConversionRead>(`/nilm/lab/datasets/${dataset}/convert`, {
+      method: "POST",
     });
   },
   nilmDemo(dataset: string, houseId: string, appliance: string) {

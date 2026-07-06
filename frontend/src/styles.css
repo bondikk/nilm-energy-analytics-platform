@@ -858,6 +858,14 @@ kbd {
   padding-left: 20px;
 }
 
+.dataset-action-row,
+.dataset-status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .dataset-next-actions {
   display: grid;
   gap: 10px;
@@ -869,6 +877,16 @@ kbd {
   display: grid;
   gap: 10px;
   min-width: 0;
+}
+
+.dataset-browser-panel,
+.dataset-guide-panel,
+.dataset-profile-focus {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
 }
 
 .raw-profile-panel {
@@ -921,6 +939,32 @@ kbd {
   border-left: 3px solid rgba(96, 165, 250, 0.45);
   margin: 0;
   padding-left: 10px;
+}
+
+.detected-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.detected-signal-grid div {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.34);
+  padding: 9px;
+}
+
+.detected-signal-grid dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.detected-signal-grid dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
 }
 
 .dataset-empty-row {
@@ -1043,6 +1087,35 @@ kbd {
 
 .data-table tr:last-child td {
   border-bottom: 0;
+}
+
+.table-icon-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.46);
+  color: #dbe4f0;
+  cursor: pointer;
+}
+
+.table-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.command-snippet {
+  overflow-x: auto;
+  margin: 0;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.46);
+  color: #e2e8f0;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 12px;
+  white-space: pre-wrap;
 }
 
 .empty-state,
@@ -1191,6 +1264,7 @@ kbd {
   .dataset-file-grid,
   .dataset-grid,
   .dataset-summary-strip,
+  .detected-signal-grid,
   .model-grid {
     grid-template-columns: 1fr;
   }

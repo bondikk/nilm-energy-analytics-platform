@@ -57,6 +57,9 @@ def test_frontend_api_client_points_to_local_backend() -> None:
     assert "/nilm/lab/catalog" in api_client
     assert "/nilm/lab/datasets" in api_client
     assert "/profile" in api_client
+    assert "/files" in api_client
+    assert "/download-guide" in api_client
+    assert "/convert" in api_client
     assert "/nilm/lab/report" in api_client
     assert "new WebSocket" in websocket_client
     assert "/metrics/live" in websocket_client

@@ -5,6 +5,8 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.services.ingestion_normalizer import normalize_ingestion_payload
+
 
 class IngestionMetricPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -73,7 +75,5 @@ def parse_ingestion_payload(raw_payload: bytes | str) -> IngestionMetricPayload:
     if not isinstance(parsed, dict):
         raise ValueError("ingestion payload must be a JSON object")
 
-    payload = IngestionMetricPayload.model_validate(parsed)
-    if payload.raw_payload is None:
-        payload = payload.model_copy(update={"raw_payload": parsed})
-    return payload
+    normalized = normalize_ingestion_payload(parsed)
+    return IngestionMetricPayload.model_validate(normalized)

@@ -37,9 +37,17 @@ class DatasetFileProfile:
     kind: str
     size_bytes: int | None
     status: str
+    profiled_row_limit: int | None = None
+    profiled_row_count: int | None = None
+    truncated: bool = False
     row_count: int | None = None
     column_count: int | None = None
     columns: tuple[str, ...] = ()
+    detected_timestamp_column: str | None = None
+    detected_power_columns: tuple[str, ...] = ()
+    detected_current_columns: tuple[str, ...] = ()
+    detected_voltage_columns: tuple[str, ...] = ()
+    detected_appliance_columns: tuple[str, ...] = ()
     preview_rows: tuple[dict[str, str], ...] = ()
     column_profiles: tuple[DatasetColumnProfile, ...] = ()
     start_time: datetime | None = None
@@ -51,13 +59,22 @@ class DatasetFileProfile:
 POWER_COLUMN_HINTS = (
     "aggregate",
     "appliance",
+    "power",
+    "_w",
+    "watt",
+)
+CURRENT_COLUMN_HINTS = ("current", "amps", "ampere", "i_rms", "_a")
+VOLTAGE_COLUMN_HINTS = ("voltage", "volts", "v_rms", "_v")
+KNOWN_APPLIANCE_HINTS = (
     "fridge",
     "freezer",
     "kettle",
     "washing",
+    "washer",
     "dishwasher",
     "microwave",
-    "power",
+    "lighting",
+    "oven",
 )
 TIME_COLUMN_HINTS = ("time", "timestamp", "date")
 
@@ -91,11 +108,13 @@ def _profile_csv_file(path: Path, *, kind: str, size_bytes: int | None, row_limi
     non_empty_counts: dict[str, int] = {}
     start_time: datetime | None = None
     end_time: datetime | None = None
+    profiled_row_count = 0
 
     with path.open("r", encoding="utf-8-sig", newline="") as csv_file:
         reader = csv.DictReader(csv_file)
         columns = tuple(reader.fieldnames or ())
-        interesting_columns = _interesting_csv_columns(columns)
+        detection = _detect_csv_columns(columns)
+        interesting_columns = _interesting_csv_columns(columns, detection)
         time_column = _time_column(columns)
 
         for column in interesting_columns:
@@ -115,6 +134,7 @@ def _profile_csv_file(path: Path, *, kind: str, size_bytes: int | None, row_limi
                     end_time = parsed if end_time is None else max(end_time, parsed)
 
             if row_count <= row_limit:
+                profiled_row_count += 1
                 for column in interesting_columns:
                     value = record.get(column, "")
                     if value == "":
@@ -139,9 +159,17 @@ def _profile_csv_file(path: Path, *, kind: str, size_bytes: int | None, row_limi
         kind=kind,
         size_bytes=size_bytes,
         status="profiled",
+        profiled_row_limit=row_limit,
+        profiled_row_count=profiled_row_count,
+        truncated=truncated,
         row_count=row_count,
         column_count=len(columns),
         columns=columns,
+        detected_timestamp_column=time_column,
+        detected_power_columns=detection.power_columns,
+        detected_current_columns=detection.current_columns,
+        detected_voltage_columns=detection.voltage_columns,
+        detected_appliance_columns=detection.appliance_columns,
         preview_rows=tuple(preview_rows),
         column_profiles=tuple(
             DatasetColumnProfile(
@@ -208,18 +236,57 @@ def _profile_hdf5_file(path: Path, *, kind: str, size_bytes: int | None) -> Data
         kind=kind,
         size_bytes=size_bytes,
         status="profiled",
+        profiled_row_limit=None,
+        profiled_row_count=None,
         structure=tuple(nodes),
         notes=notes,
     )
 
 
-def _interesting_csv_columns(columns: tuple[str, ...]) -> tuple[str, ...]:
-    selected = [
+@dataclass(frozen=True)
+class _CsvColumnDetection:
+    power_columns: tuple[str, ...]
+    current_columns: tuple[str, ...]
+    voltage_columns: tuple[str, ...]
+    appliance_columns: tuple[str, ...]
+
+
+def _detect_csv_columns(columns: tuple[str, ...]) -> _CsvColumnDetection:
+    power_columns = _columns_matching(columns, POWER_COLUMN_HINTS)
+    current_columns = _columns_matching(columns, CURRENT_COLUMN_HINTS)
+    voltage_columns = _columns_matching(columns, VOLTAGE_COLUMN_HINTS)
+    appliance_columns = _columns_matching(columns, KNOWN_APPLIANCE_HINTS)
+    return _CsvColumnDetection(
+        power_columns=power_columns,
+        current_columns=current_columns,
+        voltage_columns=voltage_columns,
+        appliance_columns=appliance_columns,
+    )
+
+
+def _interesting_csv_columns(
+    columns: tuple[str, ...],
+    detection: _CsvColumnDetection,
+) -> tuple[str, ...]:
+    selected = list(
+        dict.fromkeys(
+            [
+                *detection.power_columns,
+                *detection.current_columns,
+                *detection.voltage_columns,
+                *detection.appliance_columns,
+            ]
+        )
+    )
+    return tuple(selected[:12] or columns[:12])
+
+
+def _columns_matching(columns: tuple[str, ...], hints: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(
         column
         for column in columns
-        if any(hint in column.lower() for hint in POWER_COLUMN_HINTS)
-    ]
-    return tuple(selected[:12] or columns[:12])
+        if any(hint in column.lower() for hint in hints)
+    )
 
 
 def _time_column(columns: tuple[str, ...]) -> str | None:
