@@ -111,6 +111,18 @@ export const apiClient = {
   anomalies(token: string, homeId: UUID) {
     return request<AnomalyRead[]>(`/homes/${homeId}/anomalies`, { token });
   },
+  updateAnomaly(
+    token: string,
+    homeId: UUID,
+    anomalyId: UUID,
+    payload: { status: string; resolved_at?: string },
+  ) {
+    return request<AnomalyRead>(`/homes/${homeId}/anomalies/${anomalyId}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(payload),
+    });
+  },
   nilmCatalog() {
     return request<NILMLabCatalogRead>("/nilm/lab/catalog");
   },

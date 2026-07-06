@@ -31,6 +31,7 @@ def test_frontend_uses_react_typescript_vite_structure() -> None:
         "src/pages/SettingsPage.tsx",
         "src/components/layout/DashboardLayout.tsx",
         "src/components/charts/NilmOverlayChart.tsx",
+        "src/features/nilm/liveNilm.ts",
         "src/features/nilm/nilmExperiment.ts",
         "src/services/apiClient.ts",
         "src/services/websocketClient.ts",
@@ -53,6 +54,7 @@ def test_frontend_api_client_points_to_local_backend() -> None:
     assert "/analytics/summary" in api_client
     assert "/demo/seed" in api_client
     assert "/demo/live-metric" in api_client
+    assert "updateAnomaly" in api_client
     assert "/nilm/lab/demo" in api_client
     assert "/nilm/lab/catalog" in api_client
     assert "/nilm/lab/datasets" in api_client
@@ -108,6 +110,34 @@ def test_frontend_nilm_lab_has_prediction_overlay_chart() -> None:
     assert "predicted" in nilm_chart
     assert "absoluteError" in nilm_chart
     assert "ReferenceLine" in nilm_chart
+
+
+def test_frontend_navigation_separates_live_and_research_workflows() -> None:
+    layout = (FRONTEND_DIR / "src/components/layout/DashboardLayout.tsx").read_text(
+        encoding="utf-8"
+    )
+    router = (FRONTEND_DIR / "src/app/router.tsx").read_text(encoding="utf-8")
+    overview = (FRONTEND_DIR / "src/pages/OverviewPage.tsx").read_text(encoding="utf-8")
+    live_nilm = (FRONTEND_DIR / "src/pages/AnalyticsPage.tsx").read_text(encoding="utf-8")
+    simulator = (FRONTEND_DIR / "src/pages/SimulatorPage.tsx").read_text(encoding="utf-8")
+    anomalies = (FRONTEND_DIR / "src/pages/AnomaliesPage.tsx").read_text(encoding="utf-8")
+
+    assert "Dashboard" in layout
+    assert "Live NILM" in layout
+    assert "Datasets" in layout
+    assert "Telemetry Simulator" in layout
+    assert "Two workflows" in layout
+    assert 'path: "live-nilm"' in router
+    assert 'path: "datasets"' in router
+    assert "LiveDisaggregationPanel" in overview
+    assert "connectMetricsSocket" in overview
+    assert "Current disaggregation" in overview
+    assert "Live signal interpretation" in live_nilm
+    assert "Likely active loads" in live_nilm
+    assert "Generate demo dataset" in simulator
+    assert "Inspect live update" in simulator
+    assert "recommendedAction" in anomalies
+    assert "updateAnomaly" in anomalies
 
 
 def test_backend_allows_local_frontend_origin() -> None:

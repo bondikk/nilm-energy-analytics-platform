@@ -1,5 +1,6 @@
 import { Play, RadioTower } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { useAuth } from "../app/providers";
 import { ErrorState } from "../components/ui/ErrorState";
@@ -88,16 +89,43 @@ export function SimulatorPage() {
     );
   }
 
+  const targetHome = homes[0] ?? null;
+  const targetDevice = devices[0] ?? null;
+  const payloadPreview =
+    targetHome && targetDevice
+      ? {
+          home_id: targetHome.id,
+          device_id: targetDevice.id,
+          active_power_w: 620,
+          voltage_v: 230,
+          power_factor: 0.91,
+          interval_minutes: 1,
+          scenario: "normal",
+        }
+      : null;
+
   return (
-    <div className="model-grid">
+    <div className="page-stack">
       <section className="panel">
         <div className="panel__heading">
           <div>
-            <span className="eyebrow">Demo seed</span>
-            <h2>Create a reproducible workspace</h2>
+            <span className="eyebrow">Developer utility</span>
+            <h2>Telemetry Simulator</h2>
+            <p>Generate demo data or send a live MQTT reading through the real ingestion path.</p>
           </div>
           <Play size={18} />
         </div>
+      </section>
+
+      <div className="model-grid">
+        <section className="panel">
+          <div className="panel__heading">
+            <div>
+              <span className="eyebrow">Mode 1</span>
+              <h2>Seed demo workspace</h2>
+              <p>Generate reproducible historical readings for Dashboard, Live NILM, and Anomalies.</p>
+            </div>
+          </div>
         <form className="form-grid" onSubmit={seedWorkspace}>
           <label>
             Email
@@ -134,11 +162,17 @@ export function SimulatorPage() {
             />
           </label>
           <button className="button" disabled={busy} type="submit">
-            {busy ? "Seeding..." : "Seed workspace"}
+            {busy ? "Generating..." : "Generate demo dataset"}
           </button>
         </form>
         {seedResult ? (
-          <pre>{JSON.stringify({ ...seedResult, password: "hidden" }, null, 2)}</pre>
+          <div className="success-callout">
+            <strong>Demo workspace generated.</strong>
+            <span>Open Dashboard to inspect the historical signal and Live NILM estimates.</span>
+            <Link className="button button--secondary" to="/dashboard">
+              Open Dashboard
+            </Link>
+          </div>
         ) : null}
         {error ? <ErrorState message={error} /> : null}
       </section>
@@ -146,15 +180,26 @@ export function SimulatorPage() {
       <section className="panel">
         <div className="panel__heading">
           <div>
-            <span className="eyebrow">Live MQTT path</span>
-            <h2>Publish simulated metric</h2>
+            <span className="eyebrow">Mode 2</span>
+            <h2>Send live signal</h2>
+            <p>Publish a normal or spike reading so Dashboard updates through MQTT and Redis.</p>
           </div>
           <RadioTower size={18} />
         </div>
-        <p className="muted">
-          Sends a metric through the backend demo publisher so the existing ingestion pipeline can
-          process it.
-        </p>
+        {targetHome && targetDevice ? (
+          <div className="definition-list">
+            <div>
+              <dt>Target device</dt>
+              <dd>
+                {targetHome.name} · {targetDevice.name}
+              </dd>
+            </div>
+            <div>
+              <dt>External ID</dt>
+              <dd>{targetDevice.external_id}</dd>
+            </div>
+          </div>
+        ) : null}
         <div className="button-row">
           <button className="button button--secondary" type="button" onClick={() => publishLiveMetric("normal")}>
             Normal load
@@ -163,15 +208,23 @@ export function SimulatorPage() {
             Spike load
           </button>
         </div>
-        {homes[0] && devices[0] ? (
-          <StatusPill tone="success">
-            {homes[0].name} · {devices[0].name}
-          </StatusPill>
+        {targetHome && targetDevice ? (
+          <StatusPill tone="success">Ready to publish</StatusPill>
         ) : (
           <StatusPill tone="warning">No active device</StatusPill>
         )}
-        {liveResult ? <pre>{JSON.stringify(liveResult, null, 2)}</pre> : null}
+        {payloadPreview ? <pre>{JSON.stringify(payloadPreview, null, 2)}</pre> : null}
+        {liveResult ? (
+          <div className="success-callout">
+            <strong>Live reading sent.</strong>
+            <span>Topic: {liveResult.topic}</span>
+            <Link className="button button--secondary" to="/dashboard">
+              Inspect live update
+            </Link>
+          </div>
+        ) : null}
       </section>
+      </div>
     </div>
   );
 }

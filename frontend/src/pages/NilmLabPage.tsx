@@ -54,14 +54,14 @@ const LAB_MODES: Array<{ id: LabMode; label: string; icon: ReactNode }> = [
 
 const LIVE_DATASET_PROFILE_INTERVAL_MS = 8000;
 
-export function NilmLabPage() {
+export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMode }) {
   const [catalog, setCatalog] = useState<NILMLabCatalogRead | null>(null);
   const [datasetLibrary, setDatasetLibrary] = useState<NILMLabDatasetsRead | null>(null);
   const [demo, setDemo] = useState<NILMLabDemoRead | null>(null);
   const [dataset, setDataset] = useState("uk-dale");
   const [houseId, setHouseId] = useState("house-1");
   const [appliance, setAppliance] = useState("kettle");
-  const [activeMode, setActiveMode] = useState<LabMode>("datasets");
+  const [activeMode, setActiveMode] = useState<LabMode>(initialMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [datasetProfile, setDatasetProfile] = useState<NILMLabDatasetProfileRead | null>(null);

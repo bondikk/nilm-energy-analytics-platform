@@ -1,7 +1,7 @@
 import {
   Activity,
   AlertTriangle,
-  BarChart3,
+  Database,
   Gauge,
   Home,
   LogOut,
@@ -18,20 +18,22 @@ import { AuthPanel } from "../../features/auth/AuthPanel";
 import { CommandPalette } from "./CommandPalette";
 
 const navItems = [
-  { label: "Overview", path: "/dashboard", icon: Gauge, end: true },
-  { label: "Analytics", path: "/dashboard/analytics", icon: BarChart3 },
+  { label: "Dashboard", path: "/dashboard", icon: Gauge, end: true },
+  { label: "Live NILM", path: "/dashboard/live-nilm", icon: Activity },
+  { label: "Datasets", path: "/dashboard/datasets", icon: Database },
   { label: "NILM Lab", path: "/dashboard/nilm-lab", icon: Microscope },
   { label: "Anomalies", path: "/dashboard/anomalies", icon: AlertTriangle },
-  { label: "Simulator", path: "/dashboard/simulator", icon: Play },
+  { label: "Telemetry Simulator", path: "/dashboard/simulator", icon: Play },
   { label: "Settings", path: "/dashboard/settings", icon: Settings },
 ];
 
 const pageTitles: Record<string, string> = {
-  "/dashboard": "Energy control room",
-  "/dashboard/analytics": "Telemetry analytics",
+  "/dashboard": "Dashboard",
+  "/dashboard/live-nilm": "Live NILM",
+  "/dashboard/datasets": "Datasets",
   "/dashboard/nilm-lab": "NILM Lab",
-  "/dashboard/anomalies": "Anomaly operations",
-  "/dashboard/simulator": "Simulator",
+  "/dashboard/anomalies": "Anomalies",
+  "/dashboard/simulator": "Telemetry Simulator",
   "/dashboard/settings": "Settings",
 };
 
@@ -74,8 +76,8 @@ export function DashboardLayout() {
           <div className="sidebar-card__icon">
             <Activity size={18} />
           </div>
-          <strong>Research mode</strong>
-          <span>Dataset, baseline, evaluation, dashboard.</span>
+          <strong>Two workflows</strong>
+          <span>Live monitoring for devices. Research Lab for public NILM datasets.</span>
         </div>
       </aside>
 

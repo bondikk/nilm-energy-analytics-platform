@@ -19,8 +19,10 @@ export const router = createBrowserRouter([
     element: <DashboardLayout />,
     children: [
       { index: true, element: <OverviewPage /> },
-      { path: "analytics", element: <AnalyticsPage /> },
-      { path: "nilm-lab", element: <NilmLabPage /> },
+      { path: "analytics", element: <Navigate to="/dashboard/live-nilm" replace /> },
+      { path: "live-nilm", element: <AnalyticsPage /> },
+      { path: "datasets", element: <NilmLabPage initialMode="datasets" /> },
+      { path: "nilm-lab", element: <NilmLabPage initialMode="analysis" /> },
       { path: "anomalies", element: <AnomaliesPage /> },
       { path: "simulator", element: <SimulatorPage /> },
       { path: "settings", element: <SettingsPage /> },
