@@ -314,6 +314,11 @@ Copy the example environment file before starting Docker Compose:
 cp .env.example .env
 ```
 
+Optional AI-assisted NILM explanations are disabled by default. To enable the
+OpenAI-compatible explanation layer, set `AI_ANALYSIS_ENABLED=true`, provide
+`AI_API_KEY`, and configure `AI_MODEL` in `.env`. The backend sends compact
+analysis summaries only, never raw CSV/HDF5 datasets.
+
 Install backend and frontend development dependencies:
 
 ```bash

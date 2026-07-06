@@ -1,10 +1,13 @@
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from pydantic import SecretStr
 
+import app.services.ai_analysis as ai_analysis_service
 from app.api.routes.nilm import (
     get_nilm_analysis,
     get_nilm_lab_catalog,
@@ -27,6 +30,7 @@ from app.services.nilm_analysis import (
     NILMSignature,
     analyze_load_profile,
 )
+from app.services.ai_analysis import sanitize_analysis_summary
 
 
 def build_readings(values: list[float]) -> list[NILMReading]:
@@ -212,6 +216,84 @@ async def test_nilm_lab_ai_explanation_falls_back_without_api_key() -> None:
     assert response.provider == "local_fallback"
     assert "UK-DALE" in response.technical_summary
     assert response.limitations
+
+
+def test_ai_analysis_sanitizes_raw_dataset_like_payloads() -> None:
+    sanitized = sanitize_analysis_summary(
+        {
+            "dataset_label": "UK-DALE",
+            "preview_rows": [{"aggregate_power_w": 100}, {"aggregate_power_w": 120}],
+            "raw_csv_dump": "1,2,3\n" * 100,
+            "metrics": {"mae_w": 12.3},
+            "events": [{"step_magnitude_w": 2200} for _ in range(20)],
+        }
+    )
+
+    assert sanitized["dataset_label"] == "UK-DALE"
+    assert "metrics" in sanitized
+    assert "preview_rows" not in sanitized
+    assert "raw_csv_dump" not in sanitized
+    assert len(sanitized["events"]) == 12
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_ai_explanation_uses_openai_compatible_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    run_id = uuid.uuid4()
+    monkeypatch.setattr(ai_analysis_service.settings, "ai_analysis_enabled", True)
+    monkeypatch.setattr(ai_analysis_service.settings, "ai_api_key", SecretStr("test-key"))
+    monkeypatch.setattr(ai_analysis_service.settings, "ai_model", "test-model")
+    monkeypatch.setattr(ai_analysis_service.settings, "ai_base_url", "https://example.test/v1")
+
+    def fake_post_openai_compatible(
+        *,
+        model: str,
+        analysis_summary: dict[str, object],
+    ) -> dict[str, object]:
+        assert model == "test-model"
+        assert analysis_summary["dataset_label"] == "UK-DALE"
+        assert "preview_rows" not in analysis_summary
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "technical_summary": "Baseline matched the kettle event.",
+                                "plain_language_explanation": "The kettle-like load is visible.",
+                                "limitations": ["Small sample only."],
+                                "suggested_next_experiment": "Run a longer UK-DALE window.",
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        ai_analysis_service,
+        "_post_openai_compatible",
+        fake_post_openai_compatible,
+    )
+
+    response = await explain_nilm_lab_analysis(
+        run_id=run_id,
+        payload=NILMLabAIExplanationRequest(
+            analysis_summary={
+                "dataset_label": "UK-DALE",
+                "appliance_label": "Kettle",
+                "preview_rows": [{"raw": "not sent"}],
+                "mae_w": 42.0,
+                "f1_score": 0.91,
+                "event_count": 3,
+            }
+        ),
+    )
+
+    assert response.enabled is True
+    assert response.provider == "openai_compatible"
+    assert response.model == "test-model"
+    assert response.technical_summary == "Baseline matched the kettle event."
+    assert "raw CSV/HDF5" in response.limitations[-1]
 
 
 @pytest.mark.asyncio

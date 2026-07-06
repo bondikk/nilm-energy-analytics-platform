@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     ai_api_key: SecretStr = SecretStr("")
     ai_model: str = ""
     ai_base_url: str = ""
+    ai_request_timeout_seconds: float = 12.0
 
     jwt_secret_key: SecretStr = SecretStr("change_me_in_production")
     jwt_algorithm: str = "HS256"

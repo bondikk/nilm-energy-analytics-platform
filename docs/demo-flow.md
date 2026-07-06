@@ -113,8 +113,14 @@ AI_ANALYSIS_ENABLED=false
 AI_PROVIDER=openai_compatible
 AI_API_KEY=
 AI_MODEL=
-AI_BASE_URL=
+AI_BASE_URL=https://api.openai.com/v1
+AI_REQUEST_TIMEOUT_SECONDS=12
 ```
+
+To enable the real provider call, set `AI_ANALYSIS_ENABLED=true`, provide
+`AI_API_KEY`, and choose an OpenAI-compatible chat model in `AI_MODEL`. The
+backend sends only metrics, event counts, selected event examples, and
+limitations; raw dataset rows are filtered out before the request.
 
 ## 9. Optional ESP32 telemetry
 
