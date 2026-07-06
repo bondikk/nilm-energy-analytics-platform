@@ -36,6 +36,7 @@ class LabDatasetMetadata(TypedDict):
     license_access_notes: str
     raw_path: str
     processed_path: str
+    processed_sample_path: str
     sample_path: str
     status: str
     actions: tuple[str, ...]
@@ -71,6 +72,7 @@ LAB_DATASET_METADATA: dict[str, LabDatasetMetadata] = {
         ),
         "raw_path": "data/raw/uk-dale/",
         "processed_path": "data/processed/uk_dale_house_1.csv",
+        "processed_sample_path": "data/processed/uk_dale_house_1_sample.csv",
         "sample_path": "data/samples/uk_dale_house_1_sample.csv",
         "status": "first-class target",
         "actions": (
@@ -92,6 +94,7 @@ LAB_DATASET_METADATA: dict[str, LabDatasetMetadata] = {
         ),
         "limitations": (
             "Only a tiny UK-DALE-style sample is committed to the repository.",
+            "The committed processed CSV is a sample, not the full UK-DALE house.",
             "Channel mappings differ by house and must be checked before conversion.",
             "The current demo evaluates a baseline model, not a production NILM model.",
         ),
@@ -120,7 +123,8 @@ LAB_DATASET_METADATA: dict[str, LabDatasetMetadata] = {
         ),
         "raw_path": "data/raw/redd/",
         "processed_path": "data/processed/redd_house_1.csv",
-        "sample_path": "",
+        "processed_sample_path": "data/processed/redd_house_1_sample.csv",
+        "sample_path": "data/processed/redd_house_1_sample.csv",
         "status": "loader scaffold",
         "actions": (
             "Place REDD raw files under data/raw/redd/",
@@ -137,6 +141,7 @@ LAB_DATASET_METADATA: dict[str, LabDatasetMetadata] = {
             "Keep notes on the exact house/channel layout before adding a converter mapping.",
         ),
         "limitations": (
+            "The committed REDD processed CSV is a tiny schema sample, not the full dataset.",
             "The REDD loader is a scaffold until real raw files and channel mappings are available.",
             "No automatic download is provided because access and hosting can change.",
             "Dataset-backed analysis currently uses the UK-DALE sample path.",
@@ -159,7 +164,8 @@ LAB_DATASET_METADATA: dict[str, LabDatasetMetadata] = {
         ),
         "raw_path": "data/raw/refit/",
         "processed_path": "data/processed/refit_house_1.csv",
-        "sample_path": "",
+        "processed_sample_path": "data/processed/refit_house_1_sample.csv",
+        "sample_path": "data/processed/refit_house_1_sample.csv",
         "status": "loader scaffold",
         "actions": (
             "Place REFIT CSV files under data/raw/refit/",
@@ -176,6 +182,7 @@ LAB_DATASET_METADATA: dict[str, LabDatasetMetadata] = {
             "Add an explicit house-to-column mapping before converting to unified CSV.",
         ),
         "limitations": (
+            "The committed REFIT processed CSV is a tiny schema sample, not the full dataset.",
             "The REFIT loader is currently a scaffold.",
             "No automatic download is provided because the access workflow is portal-based.",
             "Large raw files must remain outside git.",

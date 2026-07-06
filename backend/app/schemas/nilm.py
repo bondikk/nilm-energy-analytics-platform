@@ -156,10 +156,13 @@ class NILMLabDatasetInventoryItemRead(BaseModel):
     license_access_notes: str
     raw_path: str
     processed_path: str
+    processed_sample_path: str | None
     sample_path: str | None
     status: str
     raw_available: bool
     processed_available: bool
+    processed_sample_available: bool
+    processed_is_sample: bool
     sample_available: bool
     raw_file_count: int
     raw_total_bytes: int | None

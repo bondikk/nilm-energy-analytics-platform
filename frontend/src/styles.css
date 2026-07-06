@@ -859,7 +859,8 @@ kbd {
 }
 
 .dataset-action-row,
-.dataset-status-badges {
+.dataset-status-badges,
+.dataset-live-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

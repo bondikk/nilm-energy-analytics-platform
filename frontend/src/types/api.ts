@@ -167,10 +167,13 @@ export interface NILMLabDatasetInventoryItemRead {
   license_access_notes: string;
   raw_path: string;
   processed_path: string;
+  processed_sample_path: string | null;
   sample_path: string | null;
   status: string;
   raw_available: boolean;
   processed_available: boolean;
+  processed_sample_available: boolean;
+  processed_is_sample: boolean;
   sample_available: boolean;
   raw_file_count: number;
   raw_total_bytes: number | null;

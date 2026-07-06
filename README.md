@@ -189,6 +189,8 @@ flowchart LR
 - Dataset Library cards for UK-DALE, REDD, and REFIT with local raw/processed/sample availability.
 - Dataset detail, file browser, CSV/HDF5 profile view, download guide, and
   conversion command surfaces.
+- Live dataset analysis on the NILM Lab analysis tab, with auto-refreshing
+  profiles for raw files or tiny processed sample CSV fallbacks.
 - Overlay chart for aggregate power, appliance ground truth, and model prediction.
 - Metrics for MAE, F1-score, precision, recall, sample count, and source file.
 - Markdown report export for reproducible NILM experiments.

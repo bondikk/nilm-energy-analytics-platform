@@ -93,8 +93,10 @@ def test_frontend_nilm_lab_has_prediction_overlay_chart() -> None:
     assert "Analysis workflow" in nilm_page
     assert "Raw file inventory" in nilm_page
     assert "Processed file inventory" in nilm_page
-    assert "Raw dataset profile" in nilm_page
-    assert "detailed analysis" in nilm_page
+    assert "Live dataset analysis" in nilm_page
+    assert "LIVE_DATASET_PROFILE_INTERVAL_MS" in nilm_page
+    assert "realtime profile" in nilm_page
+    assert "Last refreshed" in nilm_page
     assert "raw connected" in nilm_page
     assert "NilmOverlayChart" in nilm_page
     assert "toggleSeries" in nilm_page

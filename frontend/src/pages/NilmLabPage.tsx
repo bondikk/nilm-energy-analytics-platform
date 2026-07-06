@@ -52,6 +52,8 @@ const LAB_MODES: Array<{ id: LabMode; label: string; icon: ReactNode }> = [
   { id: "prediction", label: "Prediction", icon: <Activity size={16} /> },
 ];
 
+const LIVE_DATASET_PROFILE_INTERVAL_MS = 8000;
+
 export function NilmLabPage() {
   const [catalog, setCatalog] = useState<NILMLabCatalogRead | null>(null);
   const [datasetLibrary, setDatasetLibrary] = useState<NILMLabDatasetsRead | null>(null);
@@ -65,6 +67,8 @@ export function NilmLabPage() {
   const [datasetProfile, setDatasetProfile] = useState<NILMLabDatasetProfileRead | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [profileUpdatedAt, setProfileUpdatedAt] = useState<string | null>(null);
+  const [liveProfileEnabled, setLiveProfileEnabled] = useState(true);
   const [reportBusy, setReportBusy] = useState(false);
   const [visibility, setVisibility] = useState<NilmOverlayVisibility>(
     DEFAULT_NILM_OVERLAY_VISIBILITY,
@@ -136,6 +140,7 @@ export function NilmLabPage() {
         const nextProfile = await apiClient.nilmDatasetProfile(dataset, 6);
         if (!cancelled) {
           setDatasetProfile(nextProfile);
+          setProfileUpdatedAt(new Date().toISOString());
         }
       } catch (caught) {
         if (!cancelled) {
@@ -154,10 +159,19 @@ export function NilmLabPage() {
     if (activeMode === "analysis") {
       void loadDatasetProfile();
     }
+    const intervalId =
+      activeMode === "analysis" && liveProfileEnabled
+        ? window.setInterval(() => {
+            void loadDatasetProfile();
+          }, LIVE_DATASET_PROFILE_INTERVAL_MS)
+        : null;
     return () => {
       cancelled = true;
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
     };
-  }, [activeMode, dataset]);
+  }, [activeMode, dataset, liveProfileEnabled]);
 
   const selectedDataset = datasetLibrary?.datasets.find((item) => item.id === dataset) ?? null;
   const selectedModel = catalog?.models[0] ?? null;
@@ -300,6 +314,9 @@ export function NilmLabPage() {
           houseId={houseId}
           profileError={profileError}
           profileLoading={profileLoading}
+          profileUpdatedAt={profileUpdatedAt}
+          liveProfileEnabled={liveProfileEnabled}
+          onToggleLiveProfile={() => setLiveProfileEnabled((current) => !current)}
         />
       ) : null}
 
@@ -475,10 +492,15 @@ function DatasetLibraryPanel({
               available={selected.processed_available}
               detail={`${selected.processed_file_count} files · ${formatBytes(
                 selected.processed_total_bytes,
-              )}`}
+              )}${selected.processed_is_sample ? " · sample" : ""}`}
               icon={<Database size={15} />}
               label="Processed CSV"
-              path={selected.processed_path}
+              path={
+                selected.processed_is_sample
+                  ? selected.processed_sample_path ?? selected.processed_path
+                  : selected.processed_path
+              }
+              statusLabel={selected.processed_is_sample ? "sample ready" : undefined}
             />
             <DatasetAvailability
               available={selected.sample_available}
@@ -627,7 +649,11 @@ function DatasetStatusBadges({ dataset }: { dataset: NILMLabDatasetInventoryItem
       tone: dataset.raw_available ? "success" : "warning",
     },
     {
-      label: dataset.processed_available ? "processed ready" : "needs conversion",
+      label: dataset.processed_available
+        ? dataset.processed_is_sample
+          ? "processed sample ready"
+          : "processed ready"
+        : "needs conversion",
       tone: dataset.processed_available ? "success" : "warning",
     },
   ] as const;
@@ -788,16 +814,22 @@ function DatasetAnalysisPanel({
   datasetProfile,
   demo,
   houseId,
+  liveProfileEnabled,
   profileError,
   profileLoading,
+  profileUpdatedAt,
+  onToggleLiveProfile,
 }: {
   appliance: NILMLabApplianceRead | null;
   dataset: NILMLabDatasetInventoryItemRead;
   datasetProfile: NILMLabDatasetProfileRead | null;
   demo: NILMLabDemoRead;
   houseId: string;
+  liveProfileEnabled: boolean;
   profileError: string;
   profileLoading: boolean;
+  profileUpdatedAt: string | null;
+  onToggleLiveProfile: () => void;
 }) {
   const pipelineSteps: Array<{
     detail: string;
@@ -813,7 +845,9 @@ function DatasetAnalysisPanel({
       label: "Unified processed CSV",
       state: dataset.processed_available ? "ready" : "missing",
       detail: dataset.processed_available
-        ? dataset.processed_path
+        ? dataset.processed_is_sample
+          ? `${dataset.processed_sample_path ?? dataset.processed_path} (sample)`
+          : dataset.processed_path
         : "Convert raw data before full training/evaluation.",
     },
     {
@@ -843,7 +877,13 @@ function DatasetAnalysisPanel({
           icon={<Database size={18} />}
           label="Processed schema"
           tone={dataset.processed_available ? "green" : "amber"}
-          value={dataset.processed_available ? "Ready" : "Missing"}
+          value={
+            dataset.processed_available
+              ? dataset.processed_is_sample
+                ? "Sample ready"
+                : "Ready"
+              : "Missing"
+          }
         />
         <MetricCard
           detail={`${houseId.replace("-", " ")} · ${appliance?.label ?? demo.appliance_label}`}
@@ -912,9 +952,12 @@ function DatasetAnalysisPanel({
 
       <RawDatasetProfilePanel
         dataset={dataset}
+        liveProfileEnabled={liveProfileEnabled}
         profile={datasetProfile}
         profileError={profileError}
         profileLoading={profileLoading}
+        profileUpdatedAt={profileUpdatedAt}
+        onToggleLiveProfile={onToggleLiveProfile}
       />
     </>
   );
@@ -922,25 +965,45 @@ function DatasetAnalysisPanel({
 
 function RawDatasetProfilePanel({
   dataset,
+  liveProfileEnabled,
   profile,
   profileError,
   profileLoading,
+  profileUpdatedAt,
+  onToggleLiveProfile,
 }: {
   dataset: NILMLabDatasetInventoryItemRead;
+  liveProfileEnabled: boolean;
   profile: NILMLabDatasetProfileRead | null;
   profileError: string;
   profileLoading: boolean;
+  profileUpdatedAt: string | null;
+  onToggleLiveProfile: () => void;
 }) {
   return (
     <section className="panel raw-profile-panel">
       <div className="panel__heading">
         <div>
-          <span className="eyebrow">Raw dataset profile</span>
-          <h2>{dataset.label} detailed analysis</h2>
+          <span className="eyebrow">Live dataset analysis</span>
+          <h2>{dataset.label} realtime profile</h2>
+          <p>
+            {profileUpdatedAt
+              ? `Last refreshed ${formatDateTime(profileUpdatedAt)}`
+              : "Waiting for the first profiling response."}
+          </p>
         </div>
-        <StatusPill tone={profile?.files.length ? "success" : undefined}>
-          {profileLoading ? "profiling" : `${profile?.profiled_file_count ?? 0} files`}
-        </StatusPill>
+        <div className="dataset-live-controls">
+          <StatusPill tone={liveProfileEnabled ? "success" : undefined}>
+            {liveProfileEnabled ? "live" : "paused"}
+          </StatusPill>
+          <StatusPill tone={profile?.files.length ? "success" : undefined}>
+            {profileLoading ? "profiling" : `${profile?.profiled_file_count ?? 0} files`}
+          </StatusPill>
+          <button className="button button--secondary" onClick={onToggleLiveProfile} type="button">
+            <RefreshCw size={16} />
+            {liveProfileEnabled ? "Pause" : "Resume"}
+          </button>
+        </div>
       </div>
 
       {profileLoading ? (
@@ -954,7 +1017,7 @@ function RawDatasetProfilePanel({
 
       {!profileLoading && !profileError && !profile?.files.length ? (
         <div className="dataset-empty-row">
-          No raw files are available for profiling under {dataset.raw_path}.
+          No raw or processed CSV files are available for profiling under {dataset.raw_path}.
         </div>
       ) : null}
 
@@ -1453,7 +1516,11 @@ function DatasetFileTable({
 
 function DatasetReadiness({ dataset }: { dataset: NILMLabDatasetInventoryItemRead }) {
   if (dataset.processed_available) {
-    return <StatusPill tone="success">analysis ready</StatusPill>;
+    return (
+      <StatusPill tone="success">
+        {dataset.processed_is_sample ? "sample analysis ready" : "analysis ready"}
+      </StatusPill>
+    );
   }
   if (dataset.raw_available) {
     return <StatusPill tone="warning">raw connected</StatusPill>;

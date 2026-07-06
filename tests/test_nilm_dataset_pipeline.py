@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.ml.datasets.schema import UnifiedNILMRow, read_unified_nilm_csv, write_unified_nilm_csv
-from app.ml.datasets.lab_demo import build_lab_demo_rows
+from app.ml.datasets.lab_demo import LAB_DATASET_METADATA, build_lab_demo_rows, resolve_project_path
 from app.ml.datasets.profiling import profile_dataset_file
 from app.ml.datasets.uk_dale_loader import UKDaleHouseConfig, load_uk_dale_house
 from app.ml.evaluation.metrics import classification_metrics, regression_metrics
@@ -198,3 +198,13 @@ def test_dataset_csv_profiler_summarizes_raw_power_file(tmp_path: Path) -> None:
     assert aggregate.min_value == 100
     assert aggregate.max_value == 2400
     assert aggregate.mean_value == 870
+
+
+def test_all_supported_datasets_ship_tiny_processed_csv_samples() -> None:
+    for metadata in LAB_DATASET_METADATA.values():
+        processed_sample_path = resolve_project_path(metadata["processed_sample_path"])
+        dataset = read_unified_nilm_csv(processed_sample_path)
+
+        assert processed_sample_path.exists()
+        assert dataset.sample_count >= 3
+        assert dataset.appliances

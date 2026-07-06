@@ -376,7 +376,11 @@ async def get_nilm_lab_dataset_profile(
             metadata["raw_path"],
             limit=max_files,
         )
-        files_to_profile = list(raw_files[:max_files])
+        if raw_files:
+            files_to_profile = list(raw_files[:max_files])
+        else:
+            processed_files, _, _ = _processed_dataset_file_inventory(metadata, limit=max_files)
+            files_to_profile = list(processed_files[:max_files])
 
     profiles = [
         profile_dataset_file(resolve_project_path(file["path"]))
@@ -456,8 +460,14 @@ def _build_dataset_inventory_item(
     metadata: LabDatasetMetadata,
 ) -> NILMLabDatasetInventoryItemRead:
     raw_files, raw_file_count, raw_total_bytes = project_file_inventory(metadata["raw_path"])
+    processed_available = project_path_exists(metadata["processed_path"])
+    processed_sample_available = project_path_exists(metadata["processed_sample_path"])
+    processed_is_sample = not processed_available and processed_sample_available
+    processed_inventory_path = (
+        metadata["processed_path"] if processed_available else metadata["processed_sample_path"]
+    )
     processed_files, processed_file_count, processed_total_bytes = project_file_inventory(
-        metadata["processed_path"]
+        processed_inventory_path
     )
 
     return NILMLabDatasetInventoryItemRead(
@@ -476,11 +486,14 @@ def _build_dataset_inventory_item(
         license_access_notes=metadata["license_access_notes"],
         raw_path=metadata["raw_path"],
         processed_path=metadata["processed_path"],
+        processed_sample_path=metadata["processed_sample_path"] or None,
         sample_path=metadata["sample_path"] or None,
         status=metadata["status"],
         raw_available=project_path_has_data(metadata["raw_path"]),
-        processed_available=project_path_exists(metadata["processed_path"]),
-        sample_available=(dataset == "uk-dale" or project_path_exists(metadata["sample_path"])),
+        processed_available=processed_available or processed_sample_available,
+        processed_sample_available=processed_sample_available,
+        processed_is_sample=processed_is_sample,
+        sample_available=project_path_exists(metadata["sample_path"]),
         raw_file_count=raw_file_count,
         raw_total_bytes=raw_total_bytes,
         processed_file_count=processed_file_count,
@@ -514,7 +527,18 @@ def _dataset_file_inventory(
     total_size = 0
     has_unknown_size = False
 
-    for dataset_path in (metadata["sample_path"], metadata["raw_path"], metadata["processed_path"]):
+    seen_paths: set[str] = set()
+    inventory_paths = tuple(
+        dict.fromkeys(
+            (
+                metadata["sample_path"],
+                metadata["raw_path"],
+                metadata["processed_path"],
+                metadata["processed_sample_path"],
+            )
+        )
+    )
+    for dataset_path in inventory_paths:
         dataset_files, count, size_bytes = project_file_inventory(dataset_path, limit=limit)
         total_count += count
         if size_bytes is None and count:
@@ -522,9 +546,30 @@ def _dataset_file_inventory(
         elif size_bytes is not None:
             total_size += size_bytes
         remaining = max(0, limit - len(files))
-        files.extend(dataset_files[:remaining])
+        for file in dataset_files:
+            if remaining <= 0:
+                break
+            if file["path"] in seen_paths:
+                continue
+            files.append(file)
+            seen_paths.add(file["path"])
+            remaining -= 1
 
     return tuple(files), total_count, None if has_unknown_size else total_size
+
+
+def _processed_dataset_file_inventory(
+    metadata: LabDatasetMetadata,
+    *,
+    limit: int,
+) -> tuple[tuple[ProjectDatasetFile, ...], int, int | None]:
+    processed_files, processed_count, processed_total = project_file_inventory(
+        metadata["processed_path"],
+        limit=limit,
+    )
+    if processed_files:
+        return processed_files, processed_count, processed_total
+    return project_file_inventory(metadata["processed_sample_path"], limit=limit)
 
 
 def _build_dataset_file_profile_read(profile: DatasetFileProfile) -> NILMLabDatasetFileProfileRead:

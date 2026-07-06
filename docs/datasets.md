@@ -17,6 +17,8 @@ data/samples/
 
 - `data/raw/` stores manually downloaded dataset files.
 - `data/processed/` stores unified CSV files generated from raw data.
+- `data/processed/*_sample.csv` stores tiny processed CSV samples for the
+  dashboard's live analysis view.
 - `data/exports/` stores local reports or one-off analysis outputs.
 - `data/samples/` stores tiny committed samples used by tests and demos.
 
@@ -43,6 +45,10 @@ memory. CSV profiling detects timestamp, power, current, voltage, and appliance
 columns; returns row/column counts, preview rows, numeric summaries, missing
 values, and time ranges. HDF5 profiling returns groups, datasets, shapes, and
 dtypes when `h5py` is installed.
+
+If full raw files are not available, the site profiles the committed processed
+sample CSV for that dataset. The UI marks these as samples so they are not
+confused with a full converted house.
 
 ## UK-DALE
 
@@ -93,7 +99,8 @@ still scaffolded.
 4. Open the frontend at <http://127.0.0.1:5173>.
 5. Open NILM Lab, select Datasets, then click the dataset.
 6. Check the badges for `raw ready`, `processed ready`, or `needs conversion`.
-7. Use View files and profile individual CSV or HDF5 files.
+7. Open the Analysis tab to watch the live dataset profile refresh on the site.
+8. Use View files and profile individual CSV or HDF5 files.
 
 ## Implemented Now
 
@@ -101,8 +108,11 @@ still scaffolded.
 - Dataset inventory, file browser, profile, download guide, and conversion
   command endpoints.
 - CSV and HDF5 profiling with explicit limits.
+- Live frontend dataset analysis that refreshes profile results while the
+  Analysis tab is open.
 - UK-DALE unified CSV converter.
-- Tiny UK-DALE-style sample for tests and the NILM Lab baseline demo.
+- Tiny processed CSV samples for UK-DALE, REDD, and REFIT.
+- Tiny UK-DALE-style sample for the NILM Lab baseline demo.
 
 ## Scaffolded
 

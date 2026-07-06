@@ -80,6 +80,7 @@ data/processed/*
 data/exports/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/processed/*_sample.csv
 !data/exports/.gitkeep
 !data/samples/**
 /datasets/
