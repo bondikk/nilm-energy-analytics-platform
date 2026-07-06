@@ -3,6 +3,7 @@ import contextlib
 from dataclasses import dataclass
 
 from redis.asyncio import Redis
+import structlog
 
 from app.core.config import settings
 from app.schemas.ingestion import parse_ingestion_payload
@@ -13,6 +14,8 @@ MQTT_CONNECT = 0x10
 MQTT_CONNACK = 0x20
 MQTT_PUBLISH = 0x30
 MQTT_SUBSCRIBE = 0x82
+
+logger = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -62,7 +65,15 @@ class MQTTMetricConsumer:
 
             while True:
                 packet = await read_publish_packet(reader)
-                payload = parse_ingestion_payload(packet.payload)
+                try:
+                    payload = parse_ingestion_payload(packet.payload)
+                except ValueError as exc:
+                    logger.warning(
+                        "mqtt_ingestion_payload_rejected",
+                        topic=packet.topic,
+                        error=str(exc),
+                    )
+                    continue
                 await self.stream.publish_metric(payload)
         finally:
             writer.close()
