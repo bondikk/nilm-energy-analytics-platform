@@ -76,6 +76,7 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
   const [reportBusy, setReportBusy] = useState(false);
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [analysisRun, setAnalysisRun] = useState<NILMLabAnalysisRunRead | null>(null);
+  const [analysisWarning, setAnalysisWarning] = useState("");
   const [visibility, setVisibility] = useState<NilmOverlayVisibility>(
     DEFAULT_NILM_OVERLAY_VISIBILITY,
   );
@@ -210,8 +211,12 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
   }
 
   async function runAnalysis() {
+    if (!demo) {
+      setAnalysisWarning("No NILM sample is loaded for the selected experiment yet.");
+      return;
+    }
     setAnalysisBusy(true);
-    setError("");
+    setAnalysisWarning("");
     try {
       setAnalysisRun(
         await apiClient.nilmRunAnalysis({
@@ -225,7 +230,18 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
         }),
       );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to run NILM analysis");
+      setAnalysisRun(
+        buildLocalAnalysisRun({
+          analysisType: "baseline_disaggregation",
+          demo,
+          modelName: selectedModel?.id ?? "threshold_step_baseline",
+        }),
+      );
+      setAnalysisWarning(
+        caught instanceof Error
+          ? `Backend run endpoint is unavailable (${caught.message}); showing local sample analysis result.`
+          : "Backend run endpoint is unavailable; showing local sample analysis result.",
+      );
     } finally {
       setAnalysisBusy(false);
     }
@@ -325,6 +341,7 @@ export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMod
           appliance={selectedAppliance}
           analysisBusy={analysisBusy}
           analysisRun={analysisRun}
+          analysisWarning={analysisWarning}
           dataset={selectedDataset}
           datasetProfile={datasetProfile?.dataset === dataset ? datasetProfile : null}
           demo={demo}
@@ -1033,6 +1050,7 @@ function DatasetAnalysisPanel({
   appliance,
   analysisBusy,
   analysisRun,
+  analysisWarning,
   dataset,
   datasetProfile,
   demo,
@@ -1047,6 +1065,7 @@ function DatasetAnalysisPanel({
   appliance: NILMLabApplianceRead | null;
   analysisBusy: boolean;
   analysisRun: NILMLabAnalysisRunRead | null;
+  analysisWarning: string;
   dataset: NILMLabDatasetInventoryItemRead;
   datasetProfile: NILMLabDatasetProfileRead | null;
   demo: NILMLabDemoRead;
@@ -1181,6 +1200,8 @@ function DatasetAnalysisPanel({
         </article>
       </section>
 
+      {analysisWarning ? <div className="dataset-empty-row">{analysisWarning}</div> : null}
+
       {analysisRun ? <AnalysisRunResult run={analysisRun} /> : null}
 
       <RawDatasetProfilePanel
@@ -1194,6 +1215,77 @@ function DatasetAnalysisPanel({
       />
     </>
   );
+}
+
+function buildLocalAnalysisRun({
+  analysisType,
+  demo,
+  modelName,
+}: {
+  analysisType: string;
+  demo: NILMLabDemoRead;
+  modelName: string;
+}): NILMLabAnalysisRunRead {
+  const aggregateValues = demo.points.map((point) => point.aggregate_power_w);
+  const events = demo.points
+    .slice(1)
+    .map((point, index) => {
+      const previous = demo.points[index];
+      const delta = point.aggregate_power_w - previous.aggregate_power_w;
+      return { point, delta };
+    })
+    .filter(({ delta }) => Math.abs(delta) >= Math.max(80, demo.on_threshold_w * 0.2))
+    .slice(0, 40)
+    .map(({ point, delta }) => ({
+      confidence: delta > 0 ? 0.82 : 0.68,
+      estimated_appliance: delta > 0 ? demo.appliance : "load_off",
+      event_type: delta > 0 ? "turn_on" : "turn_off",
+      explanation: `Aggregate step of ${Math.round(Math.abs(delta))} W detected around ${demo.appliance_label} ground truth.`,
+      step_magnitude_w: Math.round(Math.abs(delta) * 1000) / 1000,
+      ts: point.ts,
+    }));
+
+  return {
+    analysis_type: analysisType,
+    appliance: demo.appliance,
+    appliance_label: demo.appliance_label,
+    chart_data: demo.points,
+    dataset_id: demo.dataset,
+    dataset_label: demo.dataset_label,
+    detected_columns: {
+      appliances: [demo.appliance],
+      current: [],
+      power: ["aggregate_power_w", "actual_power_w", "predicted_power_w"],
+      timestamp: "timestamp",
+      voltage: [],
+    },
+    events,
+    explanation:
+      "Runs a local fallback NILM baseline over the selected sample because the backend run endpoint is unavailable.",
+    house_id: demo.house_id,
+    limitations: [
+      "Local frontend fallback uses the already loaded sample overlay.",
+      "Restart the backend to use POST /nilm/lab/analysis/run.",
+      "This is a baseline demonstration, not production NILM accuracy.",
+    ],
+    metrics: demo.metrics,
+    model_name: modelName,
+    output: "local_baseline_prediction_overlay",
+    run_id: crypto.randomUUID(),
+    signal_summary: {
+      aggregate_max_w: aggregateValues.length ? Math.max(...aggregateValues) : null,
+      aggregate_mean_w: aggregateValues.length
+        ? aggregateValues.reduce((total, value) => total + value, 0) / aggregateValues.length
+        : null,
+      aggregate_min_w: aggregateValues.length ? Math.min(...aggregateValues) : null,
+      appliance_on_threshold_w: demo.on_threshold_w,
+      end_time: demo.points[demo.points.length - 1]?.ts ?? null,
+      sample_count: demo.points.length,
+      start_time: demo.points[0]?.ts ?? null,
+    },
+    source_file: demo.source_file,
+    status: "completed_local_fallback",
+  };
 }
 
 function AnalysisRunResult({ run }: { run: NILMLabAnalysisRunRead }) {

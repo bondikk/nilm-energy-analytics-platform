@@ -42,9 +42,11 @@ export function AnalyticsPage() {
         const [nextMetrics, nextAnomalies, nextLiveNilmSummary] =
           selectedHome && selectedDevice
             ? await Promise.all([
-                apiClient.metrics(token, selectedHome.id, selectedDevice.id, 500),
-                apiClient.anomalies(token, selectedHome.id),
-                apiClient.liveNilmSummary(token, selectedHome.id, selectedDevice.id, 500),
+                apiClient.metrics(token, selectedHome.id, selectedDevice.id, 500).catch(() => []),
+                apiClient.anomalies(token, selectedHome.id).catch(() => []),
+                apiClient
+                  .liveNilmSummary(token, selectedHome.id, selectedDevice.id, 500)
+                  .catch(() => null),
               ])
             : [[] as EnergyMetricRead[], [] as AnomalyRead[], null];
         if (!cancelled) {

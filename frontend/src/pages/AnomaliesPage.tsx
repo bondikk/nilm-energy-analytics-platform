@@ -34,11 +34,15 @@ export function AnomaliesPage() {
         const [nextAnomalies, nextLiveEvents, nextMetrics] =
           home && device
             ? await Promise.all([
-                apiClient.anomalies(token, home.id),
+                apiClient.anomalies(token, home.id).catch(() => []),
                 apiClient.liveNilmEvents(token, home.id, device.id, 500).catch(() => []),
-                apiClient.metrics(token, home.id, device.id, 500),
+                apiClient.metrics(token, home.id, device.id, 500).catch(() => []),
               ])
-            : [home ? await apiClient.anomalies(token, home.id) : [], [] as LiveNILMEventRead[], [] as EnergyMetricRead[]];
+            : [
+                home ? await apiClient.anomalies(token, home.id).catch(() => []) : [],
+                [] as LiveNILMEventRead[],
+                [] as EnergyMetricRead[],
+              ];
         if (!cancelled) {
           setHomeId(home?.id ?? null);
           setAnomalies(nextAnomalies);

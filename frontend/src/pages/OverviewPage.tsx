@@ -51,9 +51,9 @@ export function OverviewPage() {
         const [nextSummary, nextMetrics, nextAnomalies, nextLiveNilmSummary] =
           firstHome && firstDevice
             ? await Promise.all([
-                apiClient.summary(token, firstHome.id, firstDevice.id),
-                apiClient.metrics(token, firstHome.id, firstDevice.id, 180),
-                apiClient.anomalies(token, firstHome.id),
+                apiClient.summary(token, firstHome.id, firstDevice.id).catch(() => null),
+                apiClient.metrics(token, firstHome.id, firstDevice.id, 180).catch(() => []),
+                apiClient.anomalies(token, firstHome.id).catch(() => []),
                 apiClient
                   .liveNilmSummary(token, firstHome.id, firstDevice.id, 500)
                   .catch(() => null),
