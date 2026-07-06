@@ -30,6 +30,7 @@ import { formatEnergyWh, formatMetric, formatWatts } from "../features/nilm/nilm
 import { apiClient } from "../services/apiClient";
 import type {
   NILMLabApplianceRead,
+  NILMLabAIExplanationRead,
   NILMLabAnalysisRunRead,
   NILMLabCatalogRead,
   NILMLabDatasetConversionRead,
@@ -45,8 +46,17 @@ import type {
 } from "../types/api";
 
 type LabMode = "datasets" | "analysis" | "prediction";
+type DatasetDetailTab = "overview" | "files" | "profile" | "quality" | "guide";
 
 const LIVE_DATASET_PROFILE_INTERVAL_MS = 8000;
+
+const DATASET_DETAIL_TABS: Array<{ id: DatasetDetailTab; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "files", label: "Files" },
+  { id: "profile", label: "Profile" },
+  { id: "quality", label: "Signal Quality" },
+  { id: "guide", label: "Import Guide" },
+];
 
 export function NilmLabPage({ initialMode = "datasets" }: { initialMode?: LabMode }) {
   const [catalog, setCatalog] = useState<NILMLabCatalogRead | null>(null);
@@ -364,6 +374,7 @@ function DatasetLibraryPanel({
   const [selectedProfile, setSelectedProfile] = useState<NILMLabDatasetFileProfileRead | null>(
     null,
   );
+  const [activeDatasetTab, setActiveDatasetTab] = useState<DatasetDetailTab>("overview");
   const [actionBusy, setActionBusy] = useState("");
   const [actionError, setActionError] = useState("");
 
@@ -372,10 +383,12 @@ function DatasetLibraryPanel({
     setGuide(null);
     setConversion(null);
     setSelectedProfile(null);
+    setActiveDatasetTab("overview");
     setActionError("");
   }, [selectedDataset]);
 
   async function openFiles() {
+    setActiveDatasetTab("files");
     setActionBusy("files");
     setActionError("");
     try {
@@ -388,6 +401,7 @@ function DatasetLibraryPanel({
   }
 
   async function openGuide() {
+    setActiveDatasetTab("guide");
     setActionBusy("guide");
     setActionError("");
     try {
@@ -400,6 +414,7 @@ function DatasetLibraryPanel({
   }
 
   async function profileFile(path: string) {
+    setActiveDatasetTab("profile");
     setActionBusy(path);
     setActionError("");
     try {
@@ -413,6 +428,7 @@ function DatasetLibraryPanel({
   }
 
   async function requestConversionCommand() {
+    setActiveDatasetTab("guide");
     setActionBusy("convert");
     setActionError("");
     try {
@@ -488,68 +504,109 @@ function DatasetLibraryPanel({
           <p>{selected.description}</p>
           <DatasetStatusBadges dataset={selected} />
 
-          <div className="dataset-summary-strip">
-            <DatasetAvailability
-              available={selected.raw_available}
-              detail={`${selected.raw_file_count} files · ${formatBytes(selected.raw_total_bytes)}`}
-              icon={<HardDrive size={15} />}
-              label="Raw files"
-              path={selected.raw_path}
-            />
-            <DatasetAvailability
-              available={selected.processed_available}
-              detail={`${selected.processed_file_count} files · ${formatBytes(
-                selected.processed_total_bytes,
-              )}${selected.processed_is_sample ? " · sample" : ""}`}
-              icon={<Database size={15} />}
-              label="Processed CSV"
-              path={
-                selected.processed_is_sample
-                  ? selected.processed_sample_path ?? selected.processed_path
-                  : selected.processed_path
-              }
-              statusLabel={selected.processed_is_sample ? "sample ready" : undefined}
-            />
-            <DatasetAvailability
-              available={selected.sample_available}
-              detail={selected.sample_available ? "usable in prediction demo" : undefined}
-              icon={<Waves size={15} />}
-              label="Sample"
-              path={selected.sample_path ?? "No packaged sample"}
-              state={selected.sample_available ? "ready" : "optional"}
-              statusLabel={selected.sample_available ? "ready" : "optional"}
-            />
+          <div className="dataset-detail-tabs" aria-label="Dataset detail views">
+            {DATASET_DETAIL_TABS.map((tab) => (
+              <button
+                className={activeDatasetTab === tab.id ? "is-active" : ""}
+                key={tab.id}
+                onClick={() => setActiveDatasetTab(tab.id)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          <dl className="dataset-stats dataset-stats--wide">
-            <div>
-              <dt>Homes</dt>
-              <dd>{selected.houses}</dd>
-            </div>
-            <div>
-              <dt>Appliances</dt>
-              <dd>{selected.appliances.join(", ")}</dd>
-            </div>
-            <div>
-              <dt>Sampling</dt>
-              <dd>{selected.sample_period}</dd>
-            </div>
-            <div>
-              <dt>Scale</dt>
-              <dd>{selected.estimated_scale}</dd>
-            </div>
-          </dl>
+          {activeDatasetTab === "overview" ? (
+            <>
+              <div className="dataset-summary-strip">
+                <DatasetAvailability
+                  available={selected.raw_available}
+                  detail={`${selected.raw_file_count} files · ${formatBytes(selected.raw_total_bytes)}`}
+                  icon={<HardDrive size={15} />}
+                  label="Raw files"
+                  path={selected.raw_path}
+                />
+                <DatasetAvailability
+                  available={selected.processed_available}
+                  detail={`${selected.processed_file_count} files · ${formatBytes(
+                    selected.processed_total_bytes,
+                  )}${selected.processed_is_sample ? " · sample" : ""}`}
+                  icon={<Database size={15} />}
+                  label="Processed CSV"
+                  path={
+                    selected.processed_is_sample
+                      ? selected.processed_sample_path ?? selected.processed_path
+                      : selected.processed_path
+                  }
+                  statusLabel={selected.processed_is_sample ? "sample ready" : undefined}
+                />
+                <DatasetAvailability
+                  available={selected.sample_available}
+                  detail={selected.sample_available ? "usable in prediction demo" : undefined}
+                  icon={<Waves size={15} />}
+                  label="Sample"
+                  path={selected.sample_path ?? "No packaged sample"}
+                  state={selected.sample_available ? "ready" : "optional"}
+                  statusLabel={selected.sample_available ? "ready" : "optional"}
+                />
+              </div>
 
-          <dl className="definition-list">
-            <div>
-              <dt>Access notes</dt>
-              <dd>{selected.license_access_notes}</dd>
+              <dl className="dataset-stats dataset-stats--wide">
+                <div>
+                  <dt>Homes</dt>
+                  <dd>{selected.houses}</dd>
+                </div>
+                <div>
+                  <dt>Appliances</dt>
+                  <dd>{selected.appliances.join(", ")}</dd>
+                </div>
+                <div>
+                  <dt>Sampling</dt>
+                  <dd>{selected.sample_period}</dd>
+                </div>
+                <div>
+                  <dt>Scale</dt>
+                  <dd>{selected.estimated_scale}</dd>
+                </div>
+              </dl>
+
+              <dl className="definition-list">
+                <div>
+                  <dt>Access notes</dt>
+                  <dd>{selected.license_access_notes}</dd>
+                </div>
+                <div>
+                  <dt>Conversion command</dt>
+                  <dd>{selected.import_command}</dd>
+                </div>
+              </dl>
+
+              <div className="dataset-next-actions">
+                <span className="eyebrow">Next analysis steps</span>
+                <ol className="dataset-actions">
+                  {selected.actions.map((action) => (
+                    <li key={action}>{action}</li>
+                  ))}
+                </ol>
+              </div>
+            </>
+          ) : null}
+
+          {activeDatasetTab === "files" ? (
+            <div className="dataset-file-grid">
+              <DatasetFileTable
+                emptyMessage="Raw files are not connected in data/raw yet."
+                files={selected.raw_files}
+                title="Raw file inventory"
+              />
+              <DatasetFileTable
+                emptyMessage="No unified processed CSV has been generated yet."
+                files={selected.processed_files}
+                title="Processed file inventory"
+              />
             </div>
-            <div>
-              <dt>Conversion command</dt>
-              <dd>{selected.import_command}</dd>
-            </div>
-          </dl>
+          ) : null}
 
           <div className="dataset-action-row">
             <button
@@ -598,20 +655,7 @@ function DatasetLibraryPanel({
             </div>
           ) : null}
 
-          <div className="dataset-file-grid">
-            <DatasetFileTable
-              emptyMessage="Raw files are not connected in data/raw yet."
-              files={selected.raw_files}
-              title="Raw file inventory"
-            />
-            <DatasetFileTable
-              emptyMessage="No unified processed CSV has been generated yet."
-              files={selected.processed_files}
-              title="Processed file inventory"
-            />
-          </div>
-
-          {filesResponse ? (
+          {activeDatasetTab === "files" && filesResponse ? (
             <DatasetFileBrowserPanel
               filesResponse={filesResponse}
               busyKey={actionBusy}
@@ -620,25 +664,33 @@ function DatasetLibraryPanel({
             />
           ) : null}
 
-          {selectedProfile ? (
+          {activeDatasetTab === "profile" && selectedProfile ? (
             <section className="dataset-profile-focus">
               <span className="eyebrow">Selected file profile</span>
               <RawDatasetFileProfile file={selectedProfile} />
             </section>
           ) : null}
 
-          {guide ? <DatasetGuidePanel guide={guide} /> : null}
+          {activeDatasetTab === "profile" && !selectedProfile ? (
+            <div className="dataset-empty-row">
+              Select a profileable CSV/HDF5 file from Files, or use the primary action to profile
+              the packaged sample.
+            </div>
+          ) : null}
 
-          {conversion ? <DatasetConversionPanel conversion={conversion} /> : null}
+          {activeDatasetTab === "quality" ? (
+            <DatasetSignalQualityPanel dataset={selected} profile={selectedProfile} />
+          ) : null}
 
-          <div className="dataset-next-actions">
-            <span className="eyebrow">Next analysis steps</span>
-            <ol className="dataset-actions">
-              {selected.actions.map((action) => (
-                <li key={action}>{action}</li>
-              ))}
-            </ol>
-          </div>
+          {activeDatasetTab === "guide" && guide ? <DatasetGuidePanel guide={guide} /> : null}
+
+          {activeDatasetTab === "guide" && conversion ? (
+            <DatasetConversionPanel conversion={conversion} />
+          ) : null}
+
+          {activeDatasetTab === "guide" && !guide && !conversion ? (
+            <div className="dataset-empty-row">Open the import guide or conversion command for this dataset.</div>
+          ) : null}
         </article>
       </div>
       <p className="muted">{ingestionNote}</p>
@@ -675,6 +727,167 @@ function DatasetStatusBadges({ dataset }: { dataset: NILMLabDatasetInventoryItem
       ))}
     </div>
   );
+}
+
+function DatasetSignalQualityPanel({
+  dataset,
+  profile,
+}: {
+  dataset: NILMLabDatasetInventoryItemRead;
+  profile: NILMLabDatasetFileProfileRead | null;
+}) {
+  const quality = buildDatasetSignalQuality(profile);
+
+  return (
+    <section className="dataset-guide-panel">
+      <div className="dataset-file-panel__heading">
+        <div>
+          <span className="eyebrow">Signal quality analysis</span>
+          <h3>{profile?.name ?? dataset.label}</h3>
+        </div>
+        <StatusPill tone={quality.score >= 75 ? "success" : quality.score >= 45 ? "warning" : "danger"}>
+          {quality.score}/100
+        </StatusPill>
+      </div>
+      {!profile ? (
+        <p className="muted">
+          Profile a CSV or HDF5 file first. The quality panel will then estimate sampling period,
+          missing values, power range, spikes, flatline risk, and basic validity ratios.
+        </p>
+      ) : null}
+      <dl className="dataset-stats dataset-stats--wide">
+        <div>
+          <dt>Samples</dt>
+          <dd>{formatCount(quality.sampleCount)}</dd>
+        </div>
+        <div>
+          <dt>Duration</dt>
+          <dd>{quality.duration}</dd>
+        </div>
+        <div>
+          <dt>Sampling period</dt>
+          <dd>{quality.samplingPeriod}</dd>
+        </div>
+        <div>
+          <dt>Missing values</dt>
+          <dd>{formatCount(quality.missingValues)}</dd>
+        </div>
+        <div>
+          <dt>Power range</dt>
+          <dd>{quality.powerRange}</dd>
+        </div>
+        <div>
+          <dt>Power mean</dt>
+          <dd>{quality.powerMean}</dd>
+        </div>
+        <div>
+          <dt>Zero ratio</dt>
+          <dd>{quality.zeroRatio}</dd>
+        </div>
+        <div>
+          <dt>Negative ratio</dt>
+          <dd>{quality.negativeRatio}</dd>
+        </div>
+      </dl>
+      <div className="profile-notes">
+        {quality.flags.map((flag) => (
+          <p key={flag}>{flag}</p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function buildDatasetSignalQuality(profile: NILMLabDatasetFileProfileRead | null) {
+  if (!profile) {
+    return {
+      duration: "-",
+      flags: ["No file profile selected yet."],
+      missingValues: null,
+      negativeRatio: "-",
+      powerMean: "-",
+      powerRange: "-",
+      sampleCount: null,
+      samplingPeriod: "-",
+      score: 0,
+      zeroRatio: "-",
+    };
+  }
+
+  const powerProfile =
+    profile.column_profiles.find((column) =>
+      profile.detected_power_columns.includes(column.name),
+    ) ?? profile.column_profiles.find((column) => column.kind === "numeric");
+  const sampleCount = profile.profiled_row_count ?? profile.row_count;
+  const durationSeconds =
+    profile.start_time && profile.end_time
+      ? Math.max(0, (new Date(profile.end_time).getTime() - new Date(profile.start_time).getTime()) / 1000)
+      : null;
+  const samplingPeriod =
+    durationSeconds !== null && sampleCount && sampleCount > 1
+      ? `${(durationSeconds / (sampleCount - 1)).toFixed(2)} s`
+      : "-";
+  const missingValues = profile.column_profiles.reduce(
+    (total, column) => total + column.missing_count,
+    0,
+  );
+  const missingRatio = sampleCount ? missingValues / Math.max(sampleCount * Math.max(profile.column_count ?? 1, 1), 1) : 0;
+  const flags = [
+    profile.truncated ? "Profile is truncated; use full processing for final metrics." : "Profile covers the selected file window.",
+    profile.detected_timestamp_column ? "Timestamp column detected." : "Timestamp column was not detected.",
+    profile.detected_power_columns.length ? "Power signal columns detected." : "No obvious power column detected.",
+  ];
+  if (missingRatio > 0.05) {
+    flags.push("Missing-value ratio is high enough to review before experiments.");
+  }
+  if (powerProfile?.min_value !== null && powerProfile?.min_value !== undefined && powerProfile.min_value < 0) {
+    flags.push("Negative power values were detected; check sensor conventions or preprocessing.");
+  }
+  if (
+    powerProfile?.min_value !== null &&
+    powerProfile?.max_value !== null &&
+    powerProfile?.min_value !== undefined &&
+    powerProfile?.max_value !== undefined &&
+    Math.abs(powerProfile.max_value - powerProfile.min_value) < 1
+  ) {
+    flags.push("Power signal appears nearly flat in the profiled window.");
+  }
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      100 -
+        (profile.detected_timestamp_column ? 0 : 25) -
+        (profile.detected_power_columns.length ? 0 : 30) -
+        Math.round(missingRatio * 100) -
+        (profile.truncated ? 5 : 0),
+    ),
+  );
+
+  return {
+    duration: durationSeconds === null ? "-" : formatDuration(durationSeconds),
+    flags,
+    missingValues,
+    negativeRatio:
+      powerProfile?.min_value !== null && powerProfile?.min_value !== undefined && powerProfile.min_value < 0
+        ? "detected"
+        : "not detected",
+    powerMean:
+      powerProfile?.mean_value === null || powerProfile?.mean_value === undefined
+        ? "-"
+        : formatWatts(powerProfile.mean_value),
+    powerRange:
+      powerProfile?.min_value === null ||
+      powerProfile?.max_value === null ||
+      powerProfile?.min_value === undefined ||
+      powerProfile?.max_value === undefined
+        ? "-"
+        : `${formatWatts(powerProfile.min_value)} - ${formatWatts(powerProfile.max_value)}`,
+    sampleCount,
+    samplingPeriod,
+    score,
+    zeroRatio: powerProfile?.min_value === 0 ? "zero values present" : "not detected",
+  };
 }
 
 function DatasetFileBrowserPanel({
@@ -984,6 +1197,49 @@ function DatasetAnalysisPanel({
 }
 
 function AnalysisRunResult({ run }: { run: NILMLabAnalysisRunRead }) {
+  const [explanation, setExplanation] = useState<NILMLabAIExplanationRead | null>(null);
+  const [explanationBusy, setExplanationBusy] = useState(false);
+  const [explanationError, setExplanationError] = useState("");
+
+  async function generateExplanation() {
+    setExplanationBusy(true);
+    setExplanationError("");
+    try {
+      setExplanation(
+        await apiClient.nilmExplainAnalysis(run.run_id, {
+          appliance: run.appliance,
+          appliance_label: run.appliance_label,
+          dataset_id: run.dataset_id,
+          dataset_label: run.dataset_label,
+          event_count: run.events.length,
+          f1_score: run.metrics.f1_score,
+          mae_w: run.metrics.mae_w,
+          model_name: run.model_name,
+          rmse_w: run.metrics.rmse_w,
+          sample_count: run.signal_summary.sample_count,
+        }),
+      );
+    } catch (caught) {
+      setExplanationError(
+        caught instanceof Error ? caught.message : "Unable to generate explanation",
+      );
+    } finally {
+      setExplanationBusy(false);
+    }
+  }
+
+  function exportJsonReport() {
+    const blob = new Blob([JSON.stringify(run, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `nilm-${run.dataset_id}-${run.house_id}-${run.appliance}-${run.run_id}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="panel">
       <div className="panel__heading">
@@ -992,7 +1248,22 @@ function AnalysisRunResult({ run }: { run: NILMLabAnalysisRunRead }) {
           <h2>{run.dataset_label} baseline analysis</h2>
           <p>{run.explanation}</p>
         </div>
-        <StatusPill tone="success">{run.status}</StatusPill>
+        <div className="dataset-live-controls">
+          <StatusPill tone="success">{run.status}</StatusPill>
+          <button
+            className="button button--secondary"
+            disabled={explanationBusy}
+            onClick={generateExplanation}
+            type="button"
+          >
+            <FileText size={16} />
+            {explanationBusy ? "Generating..." : "Generate explanation"}
+          </button>
+          <button className="button button--secondary" onClick={exportJsonReport} type="button">
+            <Download size={16} />
+            JSON report
+          </button>
+        </div>
       </div>
 
       <section className="metric-grid">
@@ -1066,6 +1337,39 @@ function AnalysisRunResult({ run }: { run: NILMLabAnalysisRunRead }) {
           </div>
         </article>
       </div>
+
+      {explanationError ? <div className="dataset-empty-row">{explanationError}</div> : null}
+
+      {explanation ? (
+        <article className="dataset-guide-panel">
+          <div className="dataset-file-panel__heading">
+            <div>
+              <span className="eyebrow">AI-assisted explanation</span>
+              <h3>{explanation.enabled ? "Generated interpretation" : "Local fallback interpretation"}</h3>
+            </div>
+            <StatusPill>{explanation.provider}</StatusPill>
+          </div>
+          <dl className="definition-list">
+            <div>
+              <dt>Technical summary</dt>
+              <dd>{explanation.technical_summary}</dd>
+            </div>
+            <div>
+              <dt>Plain-language explanation</dt>
+              <dd>{explanation.plain_language_explanation}</dd>
+            </div>
+            <div>
+              <dt>Suggested next experiment</dt>
+              <dd>{explanation.suggested_next_experiment}</dd>
+            </div>
+          </dl>
+          <div className="profile-notes">
+            {explanation.limitations.map((limitation) => (
+              <p key={limitation}>{limitation}</p>
+            ))}
+          </div>
+        </article>
+      ) : null}
     </section>
   );
 }
@@ -1691,6 +1995,16 @@ function formatCount(value: number | null) {
     return "-";
   }
   return value.toLocaleString();
+}
+
+function formatDuration(seconds: number) {
+  if (seconds < 60) {
+    return `${Math.round(seconds)} s`;
+  }
+  if (seconds < 3600) {
+    return `${(seconds / 60).toFixed(1)} min`;
+  }
+  return `${(seconds / 3600).toFixed(2)} h`;
 }
 
 function formatNumber(value: number | null) {

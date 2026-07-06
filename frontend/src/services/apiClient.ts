@@ -10,6 +10,7 @@ import type {
   LiveNILMEventRead,
   LiveNILMSummaryRead,
   NILMLabCatalogRead,
+  NILMLabAIExplanationRead,
   NILMLabAnalysisRunRead,
   NILMLabAnalysisRunRequest,
   NILMLabDatasetConversionRead,
@@ -186,6 +187,12 @@ export const apiClient = {
     return request<NILMLabAnalysisRunRead>("/nilm/lab/analysis/run", {
       method: "POST",
       body: JSON.stringify(payload),
+    });
+  },
+  nilmExplainAnalysis(runId: UUID, analysisSummary: Record<string, unknown>) {
+    return request<NILMLabAIExplanationRead>(`/nilm/lab/analysis/${runId}/explain`, {
+      method: "POST",
+      body: JSON.stringify({ analysis_summary: analysisSummary }),
     });
   },
   seedDemo(payload: {

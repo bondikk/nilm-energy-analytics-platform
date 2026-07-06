@@ -33,6 +33,20 @@ view with:
 - WebSocket live metric updates for the dashboard chart and readings table
 - demo simulator for generating local datasets and live MQTT readings
 
+For a supervisor-friendly walkthrough, see [docs/demo-flow.md](docs/demo-flow.md).
+
+## Demo Flow
+
+1. Start the stack with `docker compose up --build`.
+2. Open `http://127.0.0.1:5173`.
+3. Use **Simulator** -> **Generate demo workspace**.
+4. Open **Dashboard** to inspect live telemetry, signal toggles, current load estimate, recent events, and latest readings.
+5. Open **Live NILM** to inspect step events, appliance estimates, confidence values, and signal quality.
+6. Open **Events** to review anomaly and NILM event detail with signal context.
+7. Open **Datasets** to inspect dataset status, files, profile, signal quality, and import guide.
+8. Open **NILM Lab**, choose dataset/house/appliance, press **Run analysis**, and export the report.
+9. Optionally connect ESP32 firmware and publish MQTT telemetry through the real ingestion path.
+
 ## Screenshots
 
 ### Energy Control Room

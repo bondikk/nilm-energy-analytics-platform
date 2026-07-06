@@ -363,3 +363,18 @@ class NILMLabAnalysisRunRead(BaseModel):
     output: str
     explanation: str
     limitations: list[str]
+
+
+class NILMLabAIExplanationRequest(BaseModel):
+    analysis_summary: dict[str, object]
+
+
+class NILMLabAIExplanationRead(BaseModel):
+    run_id: uuid.UUID
+    enabled: bool
+    provider: str
+    model: str | None
+    technical_summary: str
+    plain_language_explanation: str
+    limitations: list[str]
+    suggested_next_experiment: str

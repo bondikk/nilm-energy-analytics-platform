@@ -756,6 +756,30 @@ kbd {
   gap: 12px;
 }
 
+.dataset-detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+
+.dataset-detail-tabs button {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 8px 10px;
+}
+
+.dataset-detail-tabs button.is-active {
+  border-color: rgba(96, 165, 250, 0.36);
+  background: rgba(96, 165, 250, 0.12);
+  color: var(--text);
+}
+
 .dashboard-live-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
@@ -765,6 +789,44 @@ kbd {
 
 .dashboard-live-grid--secondary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.segmented-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.36);
+  padding: 4px;
+}
+
+.segmented-control button {
+  min-width: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 7px 10px;
+}
+
+.segmented-control button.is-active {
+  background: rgba(96, 165, 250, 0.18);
+  color: var(--text);
+}
+
+.segmented-control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .appliance-estimate-list {

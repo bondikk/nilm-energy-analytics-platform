@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     nilm_anomaly_freshness_seconds: int = 300
     nilm_anomaly_duplicate_window_seconds: int = 600
 
+    ai_analysis_enabled: bool = False
+    ai_provider: str = "openai_compatible"
+    ai_api_key: SecretStr = SecretStr("")
+    ai_model: str = ""
+    ai_base_url: str = ""
+
     jwt_secret_key: SecretStr = SecretStr("change_me_in_production")
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30

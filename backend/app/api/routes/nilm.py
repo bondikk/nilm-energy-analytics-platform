@@ -41,6 +41,8 @@ from app.ml.models.baseline_threshold import (
 from app.ml.preprocessing.labeling import DEFAULT_ON_THRESHOLDS_W
 from app.schemas.nilm import (
     NILMAnalysisRead,
+    NILMLabAIExplanationRead,
+    NILMLabAIExplanationRequest,
     NILMLabApplianceRead,
     NILMLabAnalysisEventRead,
     NILMLabAnalysisRunRead,
@@ -66,6 +68,7 @@ from app.schemas.nilm import (
     NILMLabReportRead,
     NILMLabSignalSummaryRead,
 )
+from app.services.ai_analysis import explain_analysis_run
 from app.services.nilm_analysis import NILMDetectionConfig, NILMReading, analyze_load_profile
 
 
@@ -205,6 +208,27 @@ async def run_nilm_lab_analysis(
             "The baseline is useful for pipeline validation and UX, not production disaggregation accuracy.",
             "Full experiments should use larger processed CSV files and explicit train/test splits.",
         ],
+    )
+
+
+@lab_router.post("/analysis/{run_id}/explain", response_model=NILMLabAIExplanationRead)
+async def explain_nilm_lab_analysis(
+    run_id: uuid.UUID,
+    payload: NILMLabAIExplanationRequest,
+) -> NILMLabAIExplanationRead:
+    explanation = explain_analysis_run(
+        run_id=run_id,
+        analysis_summary=payload.analysis_summary,
+    )
+    return NILMLabAIExplanationRead(
+        run_id=explanation.run_id,
+        enabled=explanation.enabled,
+        provider=explanation.provider,
+        model=explanation.model,
+        technical_summary=explanation.technical_summary,
+        plain_language_explanation=explanation.plain_language_explanation,
+        limitations=explanation.limitations,
+        suggested_next_experiment=explanation.suggested_next_experiment,
     )
 
 

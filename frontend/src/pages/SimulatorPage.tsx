@@ -185,6 +185,10 @@ export function SimulatorPage() {
               <dt>External ID</dt>
               <dd>{targetDevice.external_id}</dd>
             </div>
+            <div>
+              <dt>Target MQTT topic</dt>
+              <dd>voltpulse/demo/devices/{targetDevice.external_id}/metrics</dd>
+            </div>
           </div>
         ) : null}
         <div className="scenario-grid">

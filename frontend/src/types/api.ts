@@ -418,6 +418,17 @@ export interface NILMLabAnalysisRunRead {
   limitations: string[];
 }
 
+export interface NILMLabAIExplanationRead {
+  run_id: UUID;
+  enabled: boolean;
+  provider: string;
+  model: string | null;
+  technical_summary: string;
+  plain_language_explanation: string;
+  limitations: string[];
+  suggested_next_experiment: string;
+}
+
 export interface DemoSeedResponse {
   email: string;
   password: string;

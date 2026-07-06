@@ -67,8 +67,18 @@ def test_frontend_api_client_points_to_local_backend() -> None:
     assert "/convert" in api_client
     assert "/nilm/lab/report" in api_client
     assert "/nilm/lab/analysis/run" in api_client
+    assert "/explain" in api_client
     assert "new WebSocket" in websocket_client
     assert "/metrics/live" in websocket_client
+
+
+def test_frontend_app_wraps_router_with_providers_at_root() -> None:
+    main = (FRONTEND_DIR / "src/main.tsx").read_text(encoding="utf-8")
+    app = (FRONTEND_DIR / "src/app/App.tsx").read_text(encoding="utf-8")
+
+    assert "<AppProviders>" in main
+    assert "<App />" in main
+    assert "RouterProvider" in app
 
 
 def test_frontend_removes_hardcoded_demo_credentials() -> None:
@@ -146,6 +156,16 @@ def test_frontend_navigation_separates_live_and_research_workflows() -> None:
     assert "Inspect live update" in simulator
     assert "recommendedAction" in anomalies
     assert "updateAnomaly" in anomalies
+
+
+def test_supervisor_demo_flow_is_documented() -> None:
+    readme = (ROOT_DIR / "README.md").read_text(encoding="utf-8")
+    demo_flow = (ROOT_DIR / "docs/demo-flow.md").read_text(encoding="utf-8")
+
+    assert "docs/demo-flow.md" in readme
+    assert "Generate demo workspace" in demo_flow
+    assert "Run analysis" in demo_flow
+    assert "AI_ANALYSIS_ENABLED=false" in demo_flow
 
 
 def test_backend_allows_local_frontend_origin() -> None:

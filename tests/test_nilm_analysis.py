@@ -12,12 +12,13 @@ from app.api.routes.nilm import (
     get_nilm_lab_dataset_download_guide,
     get_nilm_lab_dataset_files,
     get_nilm_lab_datasets,
+    explain_nilm_lab_analysis,
     run_nilm_lab_analysis,
     convert_nilm_lab_dataset,
     get_nilm_lab_demo,
     get_nilm_lab_report,
 )
-from app.schemas.nilm import NILMLabAnalysisRunRequest
+from app.schemas.nilm import NILMLabAIExplanationRequest, NILMLabAnalysisRunRequest
 from app.main import app
 from app.services.nilm_analysis import (
     NILMDetectionConfig,
@@ -68,6 +69,10 @@ def test_nilm_analysis_route_is_registered() -> None:
     )
     assert str(app.url_path_for("get_nilm_lab_report")) == "/nilm/lab/report"
     assert str(app.url_path_for("run_nilm_lab_analysis")) == "/nilm/lab/analysis/run"
+    assert (
+        str(app.url_path_for("explain_nilm_lab_analysis", run_id=home_id))
+        == f"/nilm/lab/analysis/{home_id}/explain"
+    )
 
 
 def test_nilm_analysis_detects_power_step_events() -> None:
@@ -183,6 +188,29 @@ async def test_nilm_lab_analysis_run_returns_guided_result() -> None:
     assert "aggregate_power_w" in response.detected_columns.power
     assert response.chart_data
     assert response.events
+    assert response.limitations
+
+
+@pytest.mark.asyncio
+async def test_nilm_lab_ai_explanation_falls_back_without_api_key() -> None:
+    run_id = uuid.uuid4()
+    response = await explain_nilm_lab_analysis(
+        run_id=run_id,
+        payload=NILMLabAIExplanationRequest(
+            analysis_summary={
+                "dataset_label": "UK-DALE",
+                "appliance_label": "Kettle",
+                "mae_w": 42.0,
+                "f1_score": 0.91,
+                "event_count": 3,
+            }
+        ),
+    )
+
+    assert response.run_id == run_id
+    assert response.enabled is False
+    assert response.provider == "local_fallback"
+    assert "UK-DALE" in response.technical_summary
     assert response.limitations
 
 
